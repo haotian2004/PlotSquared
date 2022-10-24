@@ -1,43 +1,37 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.plot.flag;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
+import com.intellectualsites.annotations.NotPublic;
+import com.plotsquared.core.configuration.caption.CaptionUtility;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Container type for {@link PlotFlag plot flags}.
@@ -49,7 +43,8 @@ public class FlagContainer {
     private final Map<String, String> unknownFlags = new HashMap<>();
     private final Map<Class<?>, PlotFlag<?, ?>> flagMap = new HashMap<>();
     private final PlotFlagUpdateHandler plotFlagUpdateHandler;
-    private final Collection<PlotFlagUpdateHandler> updateSubscribers = new ArrayList<>();
+    private final Collection<PlotFlagUpdateHandler> updateSubscribers = new HashSet<>();
+    private final PlotFlagUpdateHandler unknownsRef;
     private FlagContainer parentContainer;
 
     /**
@@ -71,7 +66,10 @@ public class FlagContainer {
         this.parentContainer = parentContainer;
         this.plotFlagUpdateHandler = plotFlagUpdateHandler;
         if (!(this instanceof GlobalFlagContainer)) {
-            GlobalFlagContainer.getInstance().subscribe(this::handleUnknowns);
+            this.unknownsRef = this::handleUnknowns;
+            GlobalFlagContainer.getInstance().subscribe(this.unknownsRef);
+        } else {
+            this.unknownsRef = null;
         }
     }
 
@@ -90,7 +88,7 @@ public class FlagContainer {
     }
 
     /**
-     * Cast a plot flag with wildcard parameters into a parametrisized
+     * Cast a plot flag with wildcard parameters into a parametrized
      * PlotFlag. This is an unsafe operation, and should only be performed
      * if the generic parameters are known beforehand.
      *
@@ -99,7 +97,7 @@ public class FlagContainer {
      * @param <T>  Flag type
      * @return Casted flag
      */
-    @SuppressWarnings("ALL")
+    @SuppressWarnings("unchecked")
     public static <V, T extends PlotFlag<V, ?>> T castUnsafe(
             final PlotFlag<?, ?> flag
     ) {
@@ -136,10 +134,13 @@ public class FlagContainer {
     /**
      * Add a flag to the container
      *
+     * <p>
+     * Use {@link #addAll(Collection)} to add multiple flags.
+     * </p>
+     *
      * @param flag Flag to add
      * @param <T>  flag type
      * @param <V>  flag value type
-     * @see #addAll(Collection) to add multiple flags
      */
     public <V, T extends PlotFlag<V, ?>> void addFlag(final T flag) {
         try {
@@ -175,6 +176,7 @@ public class FlagContainer {
      * @param <V>  flag value type
      * @return value of flag removed
      */
+    @SuppressWarnings("unchecked")
     public <V, T extends PlotFlag<V, ?>> V removeFlag(final T flag) {
         final Object value = this.flagMap.remove(flag.getClass());
         if (this.plotFlagUpdateHandler != null) {
@@ -192,8 +194,11 @@ public class FlagContainer {
     /**
      * Add all flags to the container
      *
+     * <p>
+     * Use {@link #addFlag(PlotFlag)} to add a single flag.
+     * </p>
+     *
      * @param flags Flags to add
-     * @see #addFlag(PlotFlag) to add a single flagg
      */
     public void addAll(final Collection<PlotFlag<?, ?>> flags) {
         for (final PlotFlag<?, ?> flag : flags) {
@@ -298,8 +303,11 @@ public class FlagContainer {
      * Updates are: a flag being removed, a flag being added or a flag
      * being updated.
      *
+     * <p>
+     * Use {@link PlotFlagUpdateType} to see the update types available.
+     * </p>
+     *
      * @param plotFlagUpdateHandler The update handler which will react to changes.
-     * @see PlotFlagUpdateType Plot flag update types
      */
     public void subscribe(final @NonNull PlotFlagUpdateHandler plotFlagUpdateHandler) {
         this.updateSubscribers.add(plotFlagUpdateHandler);
@@ -311,8 +319,9 @@ public class FlagContainer {
     ) {
         if (plotFlagUpdateType != PlotFlagUpdateType.FLAG_REMOVED && this.unknownFlags
                 .containsKey(flag.getName())) {
-            final String value = this.unknownFlags.remove(flag.getName());
+            String value = this.unknownFlags.remove(flag.getName());
             if (value != null) {
+                value = CaptionUtility.stripClickEvents(flag, value);
                 try {
                     this.addFlag(flag.parse(value));
                 } catch (final Exception ignored) {
@@ -336,31 +345,47 @@ public class FlagContainer {
         this.unknownFlags.put(flagName.toLowerCase(Locale.ENGLISH), value);
     }
 
+    /**
+     * Creates a cleanup hook that is meant to run once this FlagContainer isn't needed anymore.
+     * This is to prevent memory leaks. This method is not part of the API.
+     *
+     * @return a new Runnable that cleans up once the FlagContainer isn't needed anymore.
+     * @since 6.0.10
+     */
+    @NotPublic
+    public Runnable createCleanupHook() {
+        return () -> GlobalFlagContainer.getInstance().unsubscribe(unknownsRef);
+    }
+
+    void unsubscribe(final @Nullable PlotFlagUpdateHandler updateHandler) {
+        if (updateHandler != null) {
+            this.updateSubscribers.remove(updateHandler);
+        }
+    }
+
+    @Override
     public boolean equals(final Object o) {
-        if (o == this) {
+        if (this == o) {
             return true;
         }
-        if (!(o instanceof final FlagContainer other)) {
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!other.canEqual(this)) {
-            return false;
-        }
-        final Object this$flagMap = this.getFlagMap();
-        final Object other$flagMap = other.getFlagMap();
-        return Objects.equals(this$flagMap, other$flagMap);
+        final FlagContainer that = (FlagContainer) o;
+        return flagMap.equals(that.flagMap);
     }
 
+    @Override
+    public int hashCode() {
+        return flagMap.hashCode();
+    }
+
+    /**
+     * @deprecated This method is not meant to be invoked or overridden, with no replacement.
+     */
+    @Deprecated(forRemoval = true, since = "6.6.0")
     protected boolean canEqual(final Object other) {
         return other instanceof FlagContainer;
-    }
-
-    public int hashCode() {
-        final int PRIME = 59;
-        int result = 1;
-        final Object $flagMap = this.getFlagMap();
-        result = result * PRIME + ($flagMap == null ? 43 : $flagMap.hashCode());
-        return result;
     }
 
     /**

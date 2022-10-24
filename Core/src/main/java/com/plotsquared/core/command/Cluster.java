@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.command;
 
@@ -67,8 +60,12 @@ public class Cluster extends SubCommand {
         // list, create, delete, resize, invite, kick, leave, helpers, tp, sethome
         if (args.length == 0) {
             // return arguments
-            player.sendMessage(TranslatableCaption.of("cluster.cluster_available_args"),
-                    Template.of("list", "<dark_aqua>list</dark_aqua><gray>, </gray><dark_aqua>create</dark_aqua><gray>, </gray><dark_aqua>delete</dark_aqua><gray>, </gray><dark_aqua>resize</dark_aqua><gray>, </gray><dark_aqua>invite</dark_aqua><gray>, </gray><dark_aqua>kick</dark_aqua><gray>, </gray><dark_aqua>leave</dark_aqua><gray>, </gray><dark_aqua>members</dark_aqua><gray>, </gray><dark_aqua>info</dark_aqua><gray>, </gray><dark_aqua>tp</dark_aqua><gray>, </gray><dark_aqua>sethome</dark_aqua>")
+            player.sendMessage(
+                    TranslatableCaption.of("cluster.cluster_available_args"),
+                    Template.of(
+                            "list",
+                            "<dark_aqua>list</dark_aqua><gray>, </gray><dark_aqua>create</dark_aqua><gray>, </gray><dark_aqua>delete</dark_aqua><gray>, </gray><dark_aqua>resize</dark_aqua><gray>, </gray><dark_aqua>invite</dark_aqua><gray>, </gray><dark_aqua>kick</dark_aqua><gray>, </gray><dark_aqua>leave</dark_aqua><gray>, </gray><dark_aqua>members</dark_aqua><gray>, </gray><dark_aqua>info</dark_aqua><gray>, </gray><dark_aqua>tp</dark_aqua><gray>, </gray><dark_aqua>sethome</dark_aqua>"
+                    )
             );
             return false;
         }
@@ -102,7 +99,7 @@ public class Cluster extends SubCommand {
                 );
                 for (PlotCluster cluster : clusters) {
                     // Ignore unmanaged clusters
-                    String name = "'" + cluster.getName() + "' : " + cluster.toString();
+                    String name = "'" + cluster.getName() + "' : " + cluster;
                     if (player.getUUID().equals(cluster.owner)) {
                         player.sendMessage(
                                 TranslatableCaption.of("cluster.cluster_list_element_owner"),
@@ -555,13 +552,7 @@ public class Cluster extends SubCommand {
                                                 Template.of("cluster", cluster.getName())
                                         );
                                     }
-                                    for (final Plot plot : PlotQuery.newQuery().inWorld(player2.getLocation()
-                                            .getWorldName()).ownedBy(uuid)) {
-                                        PlotCluster current = plot.getCluster();
-                                        if (current != null && current.equals(cluster)) {
-                                            plot.unclaim();
-                                        }
-                                    }
+                                    removePlayerPlots(cluster, uuid, player2.getLocation().getWorldName());
                                     player.sendMessage(TranslatableCaption.of("cluster.cluster_kicked_user"));
                                 }
                             }
@@ -624,13 +615,7 @@ public class Cluster extends SubCommand {
                         TranslatableCaption.of("cluster.cluster_removed"),
                         Template.of("cluster", cluster.getName())
                 );
-                for (final Plot plot : PlotQuery.newQuery().inWorld(player.getLocation().getWorldName())
-                        .ownedBy(uuid)) {
-                    PlotCluster current = plot.getCluster();
-                    if (current != null && current.equals(cluster)) {
-                        plot.unclaim();
-                    }
-                }
+                removePlayerPlots(cluster, uuid, player.getLocation().getWorldName());
                 return true;
             }
             case "members": {
@@ -726,7 +711,7 @@ public class Cluster extends SubCommand {
                         return false;
                     }
                 }
-                cluster.getHome(home -> player.teleport(home, TeleportCause.COMMAND));
+                cluster.getHome(home -> player.teleport(home, TeleportCause.COMMAND_CLUSTER_TELEPORT));
                 player.sendMessage(TranslatableCaption.of("cluster.cluster_teleporting"));
                 return true;
             }
@@ -852,10 +837,32 @@ public class Cluster extends SubCommand {
                 return true;
             }
         }
-        player.sendMessage(TranslatableCaption.of("cluster.cluster_available_args"),
-                Template.of("list", "<dark_aqua>list</dark_aqua><gray>, </gray><dark_aqua>create</dark_aqua><gray>, </gray><dark_aqua>delete</dark_aqua><gray>, </gray><dark_aqua>resize</dark_aqua><gray>, </gray><dark_aqua>invite</dark_aqua><gray>, </gray><dark_aqua>kick</dark_aqua><gray>, </gray><dark_aqua>leave</dark_aqua><gray>, </gray><dark_aqua>members</dark_aqua><gray>, </gray><dark_aqua>info</dark_aqua><gray>, </gray><dark_aqua>tp</dark_aqua><gray>, </gray><dark_aqua>sethome</dark_aqua>")
+        player.sendMessage(
+                TranslatableCaption.of("cluster.cluster_available_args"),
+                Template.of(
+                        "list",
+                        "<dark_aqua>list</dark_aqua><gray>, </gray><dark_aqua>create</dark_aqua><gray>, </gray><dark_aqua>delete</dark_aqua><gray>, </gray><dark_aqua>resize</dark_aqua><gray>, </gray><dark_aqua>invite</dark_aqua><gray>, </gray><dark_aqua>kick</dark_aqua><gray>, </gray><dark_aqua>leave</dark_aqua><gray>, </gray><dark_aqua>members</dark_aqua><gray>, </gray><dark_aqua>info</dark_aqua><gray>, </gray><dark_aqua>tp</dark_aqua><gray>, </gray><dark_aqua>sethome</dark_aqua>"
+                )
         );
         return false;
+    }
+
+    private void removePlayerPlots(final PlotCluster cluster, final UUID uuid, final String world) {
+        for (final Plot plot : PlotQuery.newQuery().inWorld(world).ownedBy(uuid)) {
+            PlotCluster current = plot.getCluster();
+            if (current != null && current.equals(cluster)) {
+                if (plot.getOwners().size() == 1) {
+                    plot.unclaim();
+                } else {
+                    for (UUID newOwner : plot.getOwners()) {
+                        if (!newOwner.equals(uuid)) {
+                            plot.setOwner(newOwner);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @Override
@@ -896,8 +903,8 @@ public class Cluster extends SubCommand {
                 completions.add("sethome");
             }
             final List<Command> commands = completions.stream().filter(completion -> completion
-                    .toLowerCase()
-                    .startsWith(args[0].toLowerCase()))
+                            .toLowerCase()
+                            .startsWith(args[0].toLowerCase()))
                     .map(completion -> new Command(
                             null,
                             true,
@@ -908,11 +915,11 @@ public class Cluster extends SubCommand {
                     ) {
                     }).collect(Collectors.toCollection(LinkedList::new));
             if (Permissions.hasPermission(player, Permission.PERMISSION_CLUSTER) && args[0].length() > 0) {
-                commands.addAll(TabCompletions.completePlayers(args[0], Collections.emptyList()));
+                commands.addAll(TabCompletions.completePlayers(player, args[0], Collections.emptyList()));
             }
             return commands;
         }
-        return TabCompletions.completePlayers(String.join(",", args).trim(), Collections.emptyList());
+        return TabCompletions.completePlayers(player, String.join(",", args).trim(), Collections.emptyList());
     }
 
 }

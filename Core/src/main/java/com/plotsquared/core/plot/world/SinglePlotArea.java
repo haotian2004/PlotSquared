@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.plot.world;
 
@@ -35,8 +28,8 @@ import com.plotsquared.core.generator.GridPlotWorld;
 import com.plotsquared.core.generator.SingleWorldGenerator;
 import com.plotsquared.core.inject.annotations.WorldConfig;
 import com.plotsquared.core.listener.PlotListener;
+import com.plotsquared.core.location.BlockLoc;
 import com.plotsquared.core.location.Location;
-import com.plotsquared.core.location.PlotLoc;
 import com.plotsquared.core.plot.Plot;
 import com.plotsquared.core.plot.PlotAreaType;
 import com.plotsquared.core.plot.PlotId;
@@ -57,7 +50,9 @@ import java.nio.file.Files;
 
 public class SinglePlotArea extends GridPlotWorld {
 
+    @SuppressWarnings({"unused", "FieldCanBeLocal"})
     private final EventDispatcher eventDispatcher;
+    @SuppressWarnings({"unused", "FieldCanBeLocal"})
     private final PlotListener plotListener;
     public boolean VOID = false;
 
@@ -74,7 +69,40 @@ public class SinglePlotArea extends GridPlotWorld {
         this.eventDispatcher = eventDispatcher;
         this.plotListener = plotListener;
         this.setAllowSigns(false);
-        this.setDefaultHome(new PlotLoc(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        this.setDefaultHome(new BlockLoc(Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE));
+    }
+
+    /**
+     * Returns true if the given string matches the naming system used to identify single plot worlds
+     * e.g. -1_5 represents plot id *;-1;5. "*" being the plot area name given to single plot world
+     * {@link com.plotsquared.core.plot.PlotArea}.
+     * @since 6.1.4
+     */
+    public static boolean isSinglePlotWorld(String worldName) {
+        int len = worldName.length();
+        int separator = 0;
+        for (int i = 0; i < len; i++) {
+            switch (worldName.charAt(i)) {
+                case '_':
+                    separator++;
+                    break;
+                case '-':
+                case '0':
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                case '8':
+                case '9':
+                    break;
+                default:
+                    return false;
+            }
+        }
+        return separator == 1;
     }
 
     @NonNull
@@ -182,7 +210,12 @@ public class SinglePlotArea extends GridPlotWorld {
     @Override
     public ConfigurationNode[] getSettingNodes() {
         return new ConfigurationNode[]{
-                new ConfigurationNode("void", this.VOID, TranslatableCaption.of("setup.singleplotarea_void_world"), ConfigurationUtil.BOOLEAN)};
+                new ConfigurationNode(
+                        "void",
+                        this.VOID,
+                        TranslatableCaption.of("setup.singleplotarea_void_world"),
+                        ConfigurationUtil.BOOLEAN
+                )};
     }
 
     @Nullable
@@ -236,6 +269,7 @@ public class SinglePlotArea extends GridPlotWorld {
         return false; // do not create signs for single plots
     }
 
+    @SuppressWarnings("deprecation")
     protected Plot adapt(Plot p) {
         if (p instanceof SinglePlot) {
             return p;

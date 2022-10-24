@@ -1,35 +1,31 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.bukkit.listener;
 
 import com.google.inject.Inject;
+import com.plotsquared.core.PlotSquared;
 import com.plotsquared.core.configuration.Settings;
 import com.plotsquared.core.location.Location;
 import com.plotsquared.core.plot.Plot;
+import com.plotsquared.core.plot.PlotArea;
 import com.plotsquared.core.plot.world.PlotAreaManager;
+import com.plotsquared.core.plot.world.SinglePlotArea;
 import com.plotsquared.core.util.ReflectionUtils.RefClass;
 import com.plotsquared.core.util.ReflectionUtils.RefField;
 import com.plotsquared.core.util.ReflectionUtils.RefMethod;
@@ -55,8 +51,6 @@ import org.bukkit.event.entity.ItemSpawnEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.lang.reflect.Method;
 import java.util.HashSet;
@@ -67,33 +61,63 @@ import static com.plotsquared.core.util.ReflectionUtils.getRefClass;
 @SuppressWarnings("unused")
 public class ChunkListener implements Listener {
 
-    private static final Logger LOGGER = LogManager.getLogger("PlotSquared/" + ChunkListener.class.getSimpleName());
-
     private final PlotAreaManager plotAreaManager;
+    private final int version;
 
     private RefMethod methodGetHandleChunk;
+    private RefMethod methodGetHandleWorld;
     private RefField mustSave;
+    /*
+    private RefMethod methodGetFullChunk;
+    private RefMethod methodGetBukkitChunk;
+    private RefMethod methodGetChunkProvider;
+    private RefMethod methodGetVisibleMap;
+    private RefField worldServer;
+    private RefField playerChunkMap;
+    private RefField updatingChunks;
+    private RefField visibleChunks;
+    */
     private Chunk lastChunk;
     private boolean ignoreUnload = false;
+    private boolean isTrueForNotSave = true;
 
     @Inject
     public ChunkListener(final @NonNull PlotAreaManager plotAreaManager) {
         this.plotAreaManager = plotAreaManager;
-        if (Settings.Chunk_Processor.AUTO_TRIM) {
-            try {
-                RefClass classChunk = getRefClass("{nms}.Chunk");
-                RefClass classCraftChunk = getRefClass("{cb}.CraftChunk");
-                this.mustSave = classChunk.getField("mustSave");
-                this.methodGetHandleChunk = classCraftChunk.getMethod("getHandle");
-            } catch (Throwable ignored) {
-                Settings.Chunk_Processor.AUTO_TRIM = false;
-            }
-        }
+        version = PlotSquared.platform().serverVersion()[1];
         if (!Settings.Chunk_Processor.AUTO_TRIM) {
             return;
         }
+        try {
+            RefClass classCraftWorld = getRefClass("{cb}.CraftWorld");
+            this.methodGetHandleWorld = classCraftWorld.getMethod("getHandle");
+            RefClass classCraftChunk = getRefClass("{cb}.CraftChunk");
+            this.methodGetHandleChunk = classCraftChunk.getMethod("getHandle");
+            try {
+                if (version < 17) {
+                    RefClass classChunk = getRefClass("{nms}.Chunk");
+                    if (version == 13) {
+                        this.mustSave = classChunk.getField("mustSave");
+                        this.isTrueForNotSave = false;
+                    } else {
+                        this.mustSave = classChunk.getField("mustNotSave");
+                    }
+                } else {
+                    RefClass classChunk = getRefClass("net.minecraft.world.level.chunk.Chunk");
+                    this.mustSave = classChunk.getField("mustNotSave");
+
+                }
+            } catch (NoSuchFieldException e) {
+                e.printStackTrace();
+            }
+        } catch (Throwable ignored) {
+            Settings.Chunk_Processor.AUTO_TRIM = false;
+        }
         for (World world : Bukkit.getWorlds()) {
             world.setAutoSave(false);
+        }
+        if (version > 13) {
+            return;
         }
         TaskManager.runTaskRepeat(() -> {
             try {
@@ -103,23 +127,24 @@ public class ChunkListener implements Listener {
                     if (!this.plotAreaManager.hasPlotArea(worldName)) {
                         continue;
                     }
-                    Object w = world.getClass().getDeclaredMethod("getHandle").invoke(world);
-                    Object chunkMap = w.getClass().getDeclaredMethod("getPlayerChunkMap").invoke(w);
-                    Method methodIsChunkInUse =
-                            chunkMap.getClass().getDeclaredMethod("isChunkInUse", int.class, int.class);
-                    Chunk[] chunks = world.getLoadedChunks();
-                    for (Chunk chunk : chunks) {
-                        if ((boolean) methodIsChunkInUse
-                                .invoke(chunkMap, chunk.getX(), chunk.getZ())) {
-                            continue;
+                    Object craftWorld = methodGetHandleWorld.of(world).call();
+                    if (version == 13) {
+                        Object chunkMap = craftWorld.getClass().getDeclaredMethod("getPlayerChunkMap").invoke(craftWorld);
+                        Method methodIsChunkInUse =
+                                chunkMap.getClass().getDeclaredMethod("isChunkInUse", int.class, int.class);
+                        Chunk[] chunks = world.getLoadedChunks();
+                        for (Chunk chunk : chunks) {
+                            if ((boolean) methodIsChunkInUse.invoke(chunkMap, chunk.getX(), chunk.getZ())) {
+                                continue;
+                            }
+                            int x = chunk.getX();
+                            int z = chunk.getZ();
+                            if (!shouldSave(worldName, x, z)) {
+                                unloadChunk(worldName, chunk, false);
+                                continue;
+                            }
+                            toUnload.add(chunk);
                         }
-                        int x = chunk.getX();
-                        int z = chunk.getZ();
-                        if (!shouldSave(worldName, x, z)) {
-                            unloadChunk(worldName, chunk, false);
-                            continue;
-                        }
-                        toUnload.add(chunk);
                     }
                 }
                 if (toUnload.isEmpty()) {
@@ -144,8 +169,8 @@ public class ChunkListener implements Listener {
         }
         Object c = this.methodGetHandleChunk.of(chunk).call();
         RefField.RefExecutor field = this.mustSave.of(c);
-        if ((Boolean) field.get()) {
-            field.set(false);
+        if ((Boolean) field.get() != isTrueForNotSave) {
+            field.set(isTrueForNotSave);
             if (chunk.isLoaded()) {
                 ignoreUnload = true;
                 chunk.unload(false);
@@ -160,23 +185,44 @@ public class ChunkListener implements Listener {
         int z = chunkZ << 4;
         int x2 = x + 15;
         int z2 = z + 15;
-        Plot plot = Location.at(world, x, 1, z).getOwnedPlotAbs();
-        if (plot != null && plot.hasOwner()) {
-            return true;
+        Location loc = Location.at(world, x, 1, z);
+        PlotArea plotArea = plotAreaManager.getPlotArea(loc);
+        if (plotArea != null) {
+            Plot plot = plotArea.getPlot(loc);
+            if (plot != null && plot.hasOwner()) {
+                return true;
+            }
         }
-        plot = Location.at(world, x2, 1, z2).getOwnedPlotAbs();
-        if (plot != null && plot.hasOwner()) {
-            return true;
+        loc = Location.at(world, x2, 1, z2);
+        plotArea = plotAreaManager.getPlotArea(loc);
+        if (plotArea != null) {
+            Plot plot = plotArea.getPlot(loc);
+            if (plot != null && plot.hasOwner()) {
+                return true;
+            }
         }
-        plot = Location.at(world, x2, 1, z).getOwnedPlotAbs();
-        if (plot != null && plot.hasOwner()) {
-            return true;
+        loc = Location.at(world, x2, 1, z);
+        plotArea = plotAreaManager.getPlotArea(loc);
+        if (plotArea != null) {
+            Plot plot = plotArea.getPlot(loc);
+            if (plot != null && plot.hasOwner()) {
+                return true;
+            }
         }
-        plot = Location.at(world, x, 1, z2).getOwnedPlotAbs();
-        if (plot != null && plot.hasOwner()) {
-            return true;
+        loc = Location.at(world, x, 1, z2);
+        plotArea = plotAreaManager.getPlotArea(loc);
+        if (plotArea != null) {
+            Plot plot = plotArea.getPlot(loc);
+            if (plot != null && plot.hasOwner()) {
+                return true;
+            }
         }
-        plot = Location.at(world, x + 7, 1, z + 7).getOwnedPlotAbs();
+        loc = Location.at(world, x + 7, 1, z + 7);
+        plotArea = plotAreaManager.getPlotArea(loc);
+        if (plotArea == null) {
+            return false;
+        }
+        Plot plot = plotArea.getPlot(loc);
         return plot != null && plot.hasOwner();
     }
 
@@ -188,7 +234,7 @@ public class ChunkListener implements Listener {
         Chunk chunk = event.getChunk();
         if (Settings.Chunk_Processor.AUTO_TRIM) {
             String world = chunk.getWorld().getName();
-            if (this.plotAreaManager.hasPlotArea(world)) {
+            if ((!Settings.Enabled_Components.WORLDS || !SinglePlotArea.isSinglePlotWorld(world)) && this.plotAreaManager.hasPlotArea(world)) {
                 if (unloadChunk(world, chunk, true)) {
                     return;
                 }
@@ -258,8 +304,7 @@ public class ChunkListener implements Listener {
     }
 
     private void cleanChunk(final Chunk chunk) {
-        TaskManager.index.incrementAndGet();
-        final int currentIndex = TaskManager.index.get();
+        final int currentIndex = TaskManager.index.incrementAndGet();
         PlotSquaredTask task = TaskManager.runTaskRepeat(() -> {
             if (!chunk.isLoaded()) {
                 Objects.requireNonNull(TaskManager.removeTask(currentIndex)).cancel();

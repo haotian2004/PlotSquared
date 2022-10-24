@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.command;
 
@@ -140,18 +133,13 @@ public class Visit extends Command {
                 return;
             }
         } else {
-            if (!Permissions.hasPermission(player, Permission.PERMISSION_VISIT_OTHER)) {
+            // allow visit, if UntrustedVisit flag is set, or if the player has either the plot.visit.other or
+            // plot.admin.visit.untrusted permission
+            if (!plot.getFlag(UntrustedVisitFlag.class) && !Permissions.hasPermission(player, Permission.PERMISSION_VISIT_OTHER)
+                && !Permissions.hasPermission(player, Permission.PERMISSION_ADMIN_VISIT_UNTRUSTED)) {
                 player.sendMessage(
                         TranslatableCaption.of("permission.no_permission"),
                         Templates.of("node", "plots.visit.other")
-                );
-                return;
-            }
-            if (!plot.getFlag(UntrustedVisitFlag.class) && !Permissions
-                    .hasPermission(player, Permission.PERMISSION_ADMIN_VISIT_UNTRUSTED)) {
-                player.sendMessage(
-                        TranslatableCaption.of("permission.no_permission"),
-                        Templates.of("node", "plots.admin.visit.untrusted")
                 );
                 return;
             }
@@ -166,7 +154,7 @@ public class Visit extends Command {
             }
         }
 
-        confirm.run(this, () -> plot.teleportPlayer(player, TeleportCause.COMMAND, result -> {
+        confirm.run(this, () -> plot.teleportPlayer(player, TeleportCause.COMMAND_VISIT, result -> {
             if (result) {
                 whenDone.run(Visit.this, CommandResult.SUCCESS);
             } else {
@@ -239,9 +227,15 @@ public class Visit extends Command {
                             );
                         } else {
                             final UUID uuid = uuids.toArray(new UUID[0])[0];
+                            PlotQuery query = PlotQuery.newQuery();
+                            if (Settings.Teleport.VISIT_MERGED_OWNERS) {
+                                query.whereBasePlot().ownersInclude(uuid);
+                            } else {
+                                query.whereBasePlot().ownedBy(uuid);
+                            }
                             this.visit(
                                     player,
-                                    PlotQuery.newQuery().ownedBy(uuid).whereBasePlot(),
+                                    query,
                                     finalSortByArea,
                                     confirm,
                                     whenDone,
@@ -272,7 +266,9 @@ public class Visit extends Command {
                         if (throwable instanceof TimeoutException) {
                             // The request timed out
                             player.sendMessage(TranslatableCaption.of("players.fetching_players_timeout"));
-                        } else if (uuid != null && !PlotQuery.newQuery().ownedBy(uuid).anyMatch()) {
+                        } else if (uuid != null && (Settings.Teleport.VISIT_MERGED_OWNERS
+                                ? !PlotQuery.newQuery().ownersInclude(uuid).anyMatch()
+                                : !PlotQuery.newQuery().ownedBy(uuid).anyMatch())) {
                             // It was a valid UUID but the player has no plots
                             player.sendMessage(TranslatableCaption.of("errors.player_no_plots"));
                         } else if (uuid == null) {
@@ -295,7 +291,9 @@ public class Visit extends Command {
                         } else {
                             this.visit(
                                     player,
-                                    PlotQuery.newQuery().ownedBy(uuid).whereBasePlot(),
+                                    Settings.Teleport.VISIT_MERGED_OWNERS
+                                            ? PlotQuery.newQuery().ownersInclude(uuid).whereBasePlot()
+                                            : PlotQuery.newQuery().ownedBy(uuid).whereBasePlot(),
                                     null,
                                     confirm,
                                     whenDone,
@@ -328,7 +326,7 @@ public class Visit extends Command {
     public Collection<Command> tab(PlotPlayer<?> player, String[] args, boolean space) {
         final List<Command> completions = new ArrayList<>();
         switch (args.length - 1) {
-            case 0 -> completions.addAll(TabCompletions.completePlayers(args[0], Collections.emptyList()));
+            case 0 -> completions.addAll(TabCompletions.completePlayers(player, args[0], Collections.emptyList()));
             case 1 -> {
                 completions.addAll(
                         TabCompletions.completeAreas(args[1]));
@@ -354,32 +352,6 @@ public class Visit extends Command {
         }
 
         return completions;
-    }
-
-    private void completeNumbers(final List<Command> commands, final String arg, final int start) {
-        for (int i = 0; i < 100; i++) {
-            final String command = Integer.toString(start + 1);
-            if (!command.toLowerCase().startsWith(arg.toLowerCase())) {
-                continue;
-            }
-            commands.add(new Command(this, false, command, "",
-                    RequiredType.NONE, CommandCategory.TELEPORT
-            ) {
-            });
-        }
-    }
-
-    private void completeAreas(final List<Command> commands, final String arg) {
-        for (final PlotArea area : this.plotAreaManager.getAllPlotAreas()) {
-            final String areaName = area.getWorldName() + ";" + area.getId();
-            if (!areaName.toLowerCase().startsWith(arg.toLowerCase())) {
-                continue;
-            }
-            commands.add(new Command(this, false, area.getWorldName() + ";" + area.getId(), "",
-                    RequiredType.NONE, CommandCategory.TELEPORT
-            ) {
-            });
-        }
     }
 
 }

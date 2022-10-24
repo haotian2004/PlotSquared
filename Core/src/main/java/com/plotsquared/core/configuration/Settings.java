@@ -1,37 +1,32 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.configuration;
 
 import com.plotsquared.core.configuration.file.YamlConfiguration;
+import net.kyori.adventure.text.event.ClickEvent;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class Settings extends Config {
 
@@ -42,7 +37,7 @@ public class Settings extends Config {
 
     @Comment("This value is not configurable. It shows the platform you are using.") // This is a comment
     @Final
-    public static String PLATFORM; // These values are set from P2 before loading
+    public static String PLATFORM; // These values are set from PlotSquared before loading
 
     @Comment({"Show additional information in console. It helps us at IntellectualSites to find out more about an issue.",
             "Leave it off if you don't need it, it can spam your console."})
@@ -194,10 +189,12 @@ public class Settings extends Config {
         public boolean CONFIRMATION = true;
         public int DAYS = 90;
         public int SKIP_ACCOUNT_AGE_DAYS = -1;
+        @Comment("True, if a plot should be deleted if the plot owner is unknown to the server")
+        public boolean DELETE_IF_OWNER_IS_UNKNOWN = false;
         public List<String> WORLDS = new ArrayList<>(Collections.singletonList("*"));
 
 
-        @Comment("See: https://github.com/IntellectualSites/PlotSquared-Documentation/wiki/Plot-analysis for a description of each value.")
+        @Comment("See: https://intellectualsites.github.io/plotsquared-documentation/optimization/plot-analysis for a description of each value.")
         public static final class CALIBRATION {
 
             public int VARIETY = 0;
@@ -217,7 +214,7 @@ public class Settings extends Config {
 
 
     @Comment({"Chunk processor related settings",
-            "See https://github.com/IntellectualSites/PlotSquared-Documentation/wiki/Chunk-processor for more information."})
+            "See https://intellectualsites.github.io/plotsquared-documentation/optimization/chunk-processor for more information."})
     public static class Chunk_Processor {
 
         @Comment("Auto trim will not save chunks which aren't claimed")
@@ -245,6 +242,9 @@ public class Settings extends Config {
         public static int UUID_CACHE_SIZE = 100000;
         @Comment("Rate limit (per 10 minutes) for background UUID fetching from the Mojang API")
         public static int BACKGROUND_LIMIT = 200;
+        @Comment("Whether the Mojang API service is enabled for impromptu api calls. If false only the Background task will use" +
+                " http requests to fill the UUID cache (requires restart)")
+        public static boolean IMPROMPTU_SERVICE_MOJANG_API = true;
         @Comment("Rate limit (per 10 minutes) for random UUID fetching from the Mojang API")
         public static int IMPROMPTU_LIMIT = 300;
         @Comment("Timeout (in milliseconds) for non-blocking UUID requests (mostly commands)")
@@ -277,8 +277,10 @@ public class Settings extends Config {
         public static boolean SCIENTIFIC = false;
         @Comment("Replace wall when merging")
         public static boolean MERGE_REPLACE_WALL = true;
+        @Comment("Always show explosion Particles, even if explosion flag is set to false")
+        public static boolean ALWAYS_SHOW_EXPLOSIONS = false;
         @Comment({"Blocks that may not be used in plot components",
-                "Checkout the wiki article regarding plot components before modifying: https://github.com/IntellectualSites/PlotSquared-Documentation/wiki/Plot-Components"})
+                "Checkout the wiki article regarding plot components before modifying: https://intellectualsites.github.io/plotsquared-documentation/customization/plot-components"})
         public static List<String>
                 INVALID_BLOCKS = Arrays.asList(
                 // Acacia Stuff
@@ -400,7 +402,7 @@ public class Settings extends Config {
 
 
     @Comment({"Schematic Settings",
-            "See https://github.com/IntellectualSites/PlotSquared-Documentation/wiki/Schematic-on-Claim for more information."})
+            "See https://intellectualsites.github.io/plotsquared-documentation/schematics/schematic-on-claim for more information."})
     public static final class Schematics {
 
         @Comment(
@@ -413,6 +415,12 @@ public class Settings extends Config {
                 " - This will still only paste a schematic with a plot's bounds.",
                 " - If a schematic is too big, it will cut off, and if too small, will not full the plot."})
         public static boolean PASTE_MISMATCHES = true;
+        @Comment({"If the wall height should be taken into account when calculating the road schematic paste height",
+                " - If true, will use the lower of wall and road height.",
+                " - If true, will ensure correct schematic behaviour (no parts are cut off).",
+                " - Set to false if you experience the road being set one block too low",
+                "   (only for road schematics created pre 6.1.4)."})
+        public static boolean USE_WALL_IN_ROAD_SCHEM_HEIGHT = true;
 
     }
 
@@ -426,7 +434,7 @@ public class Settings extends Config {
     }
 
 
-    @Deprecated(forRemoval = true)
+    @Deprecated(forRemoval = true, since = "6.0.0")
     @Comment("Schematic interface related settings")
     public static class Web {
 
@@ -498,10 +506,12 @@ public class Settings extends Config {
                 "notify-enter, notify-leave, greeting or farewell flag."})
         public static boolean NOTIFICATION_AS_ACTIONBAR = false;
 
-        @Comment({"Whether to strip any possible <click_event> components from user-defined messages, e.g. plot greeting",
-                "This can allow players to use commands to give themselves ranks as commands ran in this fashion cannot be prevent by " +
-                        "permissions etc."})
-        public static boolean REMOVE_USER_DEFINED_CLICK_EVENTS = true;
+        @Comment({"The click event actions that should be removed from user input in e.g. plot flags like 'greeting'.",
+                "Actions like 'RUN_COMMAND' may be used maliciously as players could trick staff into clicking on messages",
+                "triggering destructive commands."})
+        public static List<String> CLICK_EVENT_ACTIONS_TO_REMOVE = Arrays.stream(ClickEvent.Action.values())
+                .map(Enum::name)
+                .collect(Collectors.toList());
 
     }
 
@@ -521,7 +531,7 @@ public class Settings extends Config {
 
 
     @Comment({"Backup related settings",
-            "See https://github.com/IntellectualSites/PlotSquared-Documentation/wiki/Backups for more information."})
+            "See https://intellectualsites.github.io/plotsquared-documentation/plot-backups for more information."})
     public static final class Backup {
 
         @Comment("Automatically backup plots when destructive commands are performed, e.g. /plot clear")
@@ -552,8 +562,10 @@ public class Settings extends Config {
         public static boolean ON_DEATH = false;
         @Comment("Teleport to your plot on login")
         public static boolean ON_LOGIN = false;
-        @Comment("Teleport to your plot on claim")
+        @Comment("Teleport to your plot on claim (/plot claim)")
         public static boolean ON_CLAIM = true;
+        @Comment("Teleport to your plot on auto (/plot auto)")
+        public static boolean ON_AUTO = true;
         @Comment({"Add a delay to all teleport commands (in seconds)",
                 "Assign `plots.teleport.delay.bypass` to bypass the cooldown"})
         public static int DELAY = 0;
@@ -563,6 +575,8 @@ public class Settings extends Config {
         public static boolean ON_DELETE = false;
         @Comment("The visit command is ordered by world instead of globally")
         public static boolean PER_WORLD_VISIT = false;
+        @Comment("Search merged plots for having multiple owners when using the visit command")
+        public static boolean VISIT_MERGED_OWNERS = true;
 
     }
 
@@ -613,10 +627,10 @@ public class Settings extends Config {
 
     }
 
-    @Comment("Enable or disable all of or parts of the FAWE-P2 hook")
+    @Comment("Enable or disable all of or parts of the FastAsyncWorldEdit-PlotSquared hook")
     public static final class FAWE_Components {
 
-        @Comment("Use FAWE for queue handling.")
+        @Comment("Use FastAsyncWorldEdit for queue handling.")
         public static boolean FAWE_HOOK = true;
         public static boolean CUBOIDS = true;
         public static boolean CLEAR = true;
@@ -670,6 +684,9 @@ public class Settings extends Config {
                 "  - 2 - Only execute lighting where blocks with light values are placed or removed/replaced",
                 "  - 3 - Always execute lighting (slowest)"})
         public static int LIGHTING_MODE = 1;
+        @Comment({"If blocks at the edges of queued operations should be set causing updates",
+                " - Slightly slower, but prevents issues such as fences left connected to nothing"})
+        public static boolean UPDATE_EDGES = true;
 
     }
 
@@ -700,6 +717,9 @@ public class Settings extends Config {
                 "If you would like to still show the owner of the plot, append the contents of \"titles.title_entered_plot_sub\" onto the " +
                         "former lang key."})
         public static boolean TITLES_AS_ACTIONBAR = false;
+        @Comment({"If the default title should be displayed on plots with server-plot flag set.",
+                "Titles will still be sent if the plot-title flag is set."})
+        public static boolean DISPLAY_DEFAULT_ON_SERVER_PLOT = false;
 
     }
 
@@ -739,6 +759,8 @@ public class Settings extends Config {
         @Comment("Also kill any road mobs that are being ridden, or are leashed")
         public static boolean
                 KILL_OWNED_ROAD_MOBS = false;
+        @Comment("Also kill any road mobs that are named")
+        public static boolean KILL_NAMED_ROAD_MOBS = false;
         @Comment("Kill items on roads (Stick, Paper, etc.)")
         public static boolean KILL_ROAD_ITEMS = false;
         @Comment("Kill vehicles on roads (Boat, Minecart, etc.)")
@@ -761,7 +783,7 @@ public class Settings extends Config {
         public static boolean
                 PERSISTENT_ROAD_REGEN = true;
         @Comment({"Enable the `/plot component` preset GUI",
-                "Read more about components here: https://github.com/IntellectualSites/PlotSquared-Documentation/wiki/Plot-Components"})
+                "Read more about components here: https://intellectualsites.github.io/plotsquared-documentation/customization/plot-components"})
         public static boolean COMPONENT_PRESETS = true;
         @Comment("Enable per user locale")
         public static boolean PER_USER_LOCALE = false;
@@ -788,6 +810,9 @@ public class Settings extends Config {
         );
         @Comment("Whether PlotSquared should hook into MvDWPlaceholderAPI or not")
         public static boolean USE_MVDWAPI = true;
+        @Comment("Prevent cross plot beacon effects")
+        public static boolean DISABLE_BEACON_EFFECT_OVERFLOW = true;
+
     }
 
 }

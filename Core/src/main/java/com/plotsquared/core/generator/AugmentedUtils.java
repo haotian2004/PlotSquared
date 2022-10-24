@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.generator;
 
@@ -54,12 +47,23 @@ public class AugmentedUtils {
         enabled = true;
     }
 
-    public static boolean generate(
-            @Nullable Object chunkObject,
+    /**
+     * Generate an augmented world chunk at the given location. If a queue is given, the data will be written to it, else a new
+     * queue will be created and written to world. Returns true if generation occurred.
+     *
+     * @param world  World name to generate data for. Must be a PlotSquared world containing one or more areas else nothing will
+     *               happen.
+     * @param chunkX Chunk X position
+     * @param chunkZ Chunk Z position
+     * @param queue  Queue to write to, if desired.
+     * @return true if generation occurred.
+     * @since 6.8.0
+     */
+    public static boolean generateChunk(
             final @NonNull String world,
             final int chunkX,
             final int chunkZ,
-            QueueCoordinator queue
+            @Nullable QueueCoordinator queue
     ) {
         if (!enabled) {
             return false;
@@ -70,7 +74,7 @@ public class AugmentedUtils {
         final int blockZ = chunkZ << 4;
         // Create a region that contains the
         // entire chunk
-        CuboidRegion region = RegionUtil.createRegion(blockX, blockX + 15, blockZ, blockZ + 15);
+        CuboidRegion region = RegionUtil.createRegion(blockX, blockX + 15, 0, 0, blockZ, blockZ + 15);
         // Query for plot areas in the chunk
         final Set<PlotArea> areas = PlotSquared.get().getPlotAreaManager().getPlotAreasSet(world, region);
         if (areas.isEmpty()) {
@@ -97,9 +101,6 @@ public class AugmentedUtils {
                         .platform()
                         .worldUtil()
                         .getWeWorld(world));
-                if (chunkObject != null) {
-                    queue.setChunkObject(chunkObject);
-                }
             }
             QueueCoordinator primaryMask;
             // coordinates
@@ -122,6 +123,7 @@ public class AugmentedUtils {
             }
             QueueCoordinator secondaryMask;
             BlockState air = BlockTypes.AIR.getDefaultState();
+            int startYOffset = !(area instanceof ClassicPlotWorld) || ((ClassicPlotWorld) area).PLOT_BEDROCK ? 1 : 0;
             if (area.getTerrain() == PlotAreaTerrainType.ROAD) {
                 PlotManager manager = area.getPlotManager();
                 final boolean[][] canPlace = new boolean[16][16];
@@ -132,7 +134,7 @@ public class AugmentedUtils {
                         int worldZ = z + blockZ;
                         boolean can = manager.getPlotId(worldX, 0, worldZ) == null;
                         if (can) {
-                            for (int y = 1; y < 128; y++) {
+                            for (int y = area.getMinGenHeight() + startYOffset; y <= area.getMaxGenHeight(); y++) {
                                 queue.setBlock(worldX, y, worldZ, air);
                             }
                             canPlace[x][z] = true;
@@ -149,35 +151,44 @@ public class AugmentedUtils {
                 secondaryMask = primaryMask;
                 for (int x = relativeBottomX; x <= relativeTopX; x++) {
                     for (int z = relativeBottomZ; z <= relativeTopZ; z++) {
-                        for (int y = 1; y < 128; y++) {
+                        for (int y = area.getMinGenHeight() + startYOffset; y <= area.getMaxGenHeight(); y++) {
                             queue.setBlock(blockX + x, y, blockZ + z, air);
                         }
                     }
                 }
                 generationResult = true;
             }
-            if (chunkObject != null) {
-                primaryMask.setChunkObject(chunkObject);
-            }
-            if (chunkObject != null) {
-                secondaryMask.setChunkObject(chunkObject);
-            }
 
+            // This queue should not be enqueued as it is simply used to restrict block setting, and then delegate to the
+            // actual queue
             ScopedQueueCoordinator scoped =
                     new ScopedQueueCoordinator(
                             secondaryMask,
-                            Location.at(world, blockX, 0, blockZ),
-                            Location.at(world, blockX + 15, 255, blockZ + 15)
+                            Location.at(world, blockX, area.getMinGenHeight(), blockZ),
+                            Location.at(world, blockX + 15, area.getMaxGenHeight(), blockZ + 15)
                     );
             generator.generateChunk(scoped, area);
             generator.populateChunk(scoped, area);
-            scoped.setForceSync(true);
-            scoped.enqueue();
         }
         if (enqueue) {
             queue.enqueue();
         }
         return generationResult;
+    }
+
+    /**
+     * @deprecated Use {@link AugmentedUtils#generateChunk(String, int, int, QueueCoordinator)} as chunkObject is not required
+     * in the above method
+     */
+    @Deprecated(forRemoval = true, since = "6.8.0")
+    public static boolean generate(
+            @Nullable Object chunkObject,
+            final @NonNull String world,
+            final int chunkX,
+            final int chunkZ,
+            QueueCoordinator queue
+    ) {
+        return generateChunk(world, chunkX, chunkZ, queue);
     }
 
 }

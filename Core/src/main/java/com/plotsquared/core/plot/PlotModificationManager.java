@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.plot;
 
@@ -30,12 +23,14 @@ import com.plotsquared.core.PlotSquared;
 import com.plotsquared.core.configuration.ConfigurationUtil;
 import com.plotsquared.core.configuration.Settings;
 import com.plotsquared.core.configuration.caption.Caption;
+import com.plotsquared.core.configuration.caption.LocaleHolder;
 import com.plotsquared.core.configuration.caption.TranslatableCaption;
 import com.plotsquared.core.database.DBFunc;
 import com.plotsquared.core.events.PlotComponentSetEvent;
 import com.plotsquared.core.events.PlotMergeEvent;
 import com.plotsquared.core.events.PlotUnlinkEvent;
 import com.plotsquared.core.events.Result;
+import com.plotsquared.core.generator.ClassicPlotWorld;
 import com.plotsquared.core.generator.SquarePlotWorld;
 import com.plotsquared.core.inject.factory.ProgressSubscriberFactory;
 import com.plotsquared.core.location.Direction;
@@ -52,10 +47,10 @@ import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.block.BlockTypes;
 import net.kyori.adventure.text.minimessage.Template;
-import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -67,8 +62,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-
-import static com.plotsquared.core.plot.Plot.MAX_HEIGHT;
 
 /**
  * Manager that handles {@link Plot} modifications
@@ -175,7 +168,7 @@ public final class PlotModificationManager {
                     return;
                 }
                 CuboidRegion region = regions.poll();
-                Location[] corners = plot.getCorners(plot.getWorldName(), region);
+                Location[] corners = Plot.getCorners(plot.getWorldName(), region);
                 Location pos1 = corners[0];
                 Location pos2 = corners[1];
                 Location newPos = pos1.add(offsetX, 0, offsetZ).withWorld(destination.getWorldName());
@@ -189,9 +182,12 @@ public final class PlotModificationManager {
     /**
      * Clear the plot
      *
+     * <p>
+     * Use {@link #deletePlot(PlotPlayer, Runnable)} to clear and delete a plot
+     * </p>
+     *
      * @param whenDone A runnable to execute when clearing finishes, or null
      * @see #clear(boolean, boolean, PlotPlayer, Runnable)
-     * @see #deletePlot(PlotPlayer, Runnable) to clear and delete a plot
      */
     public void clear(final @Nullable Runnable whenDone) {
         this.clear(false, false, null, whenDone);
@@ -200,11 +196,14 @@ public final class PlotModificationManager {
     /**
      * Clear the plot
      *
+     * <p>
+     * Use {@link #deletePlot(PlotPlayer, Runnable)} to clear and delete a plot
+     * </p>
+     *
      * @param checkRunning Whether or not already executing tasks should be checked
      * @param isDelete     Whether or not the plot is being deleted
      * @param actor        The actor clearing the plot
      * @param whenDone     A runnable to execute when clearing finishes, or null
-     * @see #deletePlot(PlotPlayer, Runnable) to clear and delete a plot
      */
     public boolean clear(
             final boolean checkRunning,
@@ -229,8 +228,8 @@ public final class PlotModificationManager {
                         !isDelete,
                         isDelete ? PlotUnlinkEvent.REASON.DELETE : PlotUnlinkEvent.REASON.CLEAR
                 );
-        if (event.getEventResult() != Result.DENY) {
-            this.unlinkPlot(event.isCreateRoad(), event.isCreateSign());
+        if (event.getEventResult() != Result.DENY && this.unlinkPlot(event.isCreateRoad(), event.isCreateSign())) {
+            PlotSquared.get().getEventDispatcher().callPostUnlink(plot, event.getReason());
         }
         final PlotManager manager = this.plot.getArea().getPlotManager();
         Runnable run = new Runnable() {
@@ -239,7 +238,7 @@ public final class PlotModificationManager {
                 if (queue.isEmpty()) {
                     Runnable run = () -> {
                         for (CuboidRegion region : regions) {
-                            Location[] corners = plot.getCorners(plot.getWorldName(), region);
+                            Location[] corners = Plot.getCorners(plot.getWorldName(), region);
                             PlotSquared.platform().regionManager().clearAllEntities(corners[0], corners[1]);
                         }
                         TaskManager.runTask(whenDone);
@@ -250,12 +249,17 @@ public final class PlotModificationManager {
                             manager.unClaimPlot(current, null, queue);
                         } else {
                             manager.claimPlot(current, queue);
+                            if (plot.getArea() instanceof ClassicPlotWorld cpw) {
+                                manager.setComponent(current.getId(), "wall", cpw.WALL_FILLING.toPattern(), actor, queue);
+                            }
                         }
                     }
                     if (queue.size() > 0) {
                         queue.setCompleteTask(run);
                         queue.enqueue();
+                        return;
                     }
+                    run.run();
                     return;
                 }
                 Plot current = queue.poll();
@@ -302,7 +306,7 @@ public final class PlotModificationManager {
                     return;
                 }
                 CuboidRegion region = regions.poll();
-                PlotSquared.platform().regionManager().setBiome(region, extendBiome, biome, plot.getWorldName(), this);
+                PlotSquared.platform().regionManager().setBiome(region, extendBiome, biome, plot.getArea(), this);
             }
         };
         run.run();
@@ -326,10 +330,9 @@ public final class PlotModificationManager {
             ids.add(current.getId());
         }
         this.plot.clearRatings();
-        QueueCoordinator queue = null;
+        QueueCoordinator queue = this.plot.getArea().getQueue();
         if (createSign) {
             this.removeSign();
-            queue = this.plot.getArea().getQueue();
         }
         PlotManager manager = this.plot.getArea().getPlotManager();
         if (createRoad) {
@@ -358,7 +361,8 @@ public final class PlotModificationManager {
         if (createSign) {
             queue.setCompleteTask(() -> TaskManager.runTaskAsync(() -> {
                 for (Plot current : plots) {
-                    current.getPlotModificationManager().setSign(PlayerManager.getName(current.getOwnerAbs()));
+                    current.getPlotModificationManager().setSign(PlayerManager.resolveName(current.getOwnerAbs()).getComponent(
+                            LocaleHolder.console()));
                 }
             }));
         }
@@ -446,7 +450,7 @@ public final class PlotModificationManager {
      * - Any setting from before plot creation will not be saved until the server is stopped properly. i.e. Set any values/options after plot
      * creation.
      *
-     * @return true if plot was created successfully
+     * @return {@code true} if plot was created successfully
      */
     public boolean create() {
         return this.create(this.plot.getOwnerAbs(), true);
@@ -502,7 +506,9 @@ public final class PlotModificationManager {
                         }
                         return;
                     }
-                    plot.getPlotModificationManager().autoMerge(event.getDir(), event.getMax(), uuid, player, true);
+                    if (plot.getPlotModificationManager().autoMerge(event.getDir(), event.getMax(), uuid, player, true)) {
+                        PlotSquared.get().getEventDispatcher().callPostMerge(player, plot);
+                    }
                 }
             });
             return true;
@@ -513,28 +519,6 @@ public final class PlotModificationManager {
                 this.plot.getArea().toString()
         );
         return false;
-    }
-
-    /**
-     * Remove the south road section of a plot<br>
-     * - Used when a plot is merged<br>
-     *
-     * @param queue Nullable {@link QueueCoordinator}. If null, creates own queue and enqueues,
-     *              otherwise writes to the queue but does not enqueue.
-     */
-    public void removeRoadSouth(final @Nullable QueueCoordinator queue) {
-        if (this.plot.getArea().getType() != PlotAreaType.NORMAL && this.plot
-                .getArea()
-                .getTerrain() == PlotAreaTerrainType.ROAD) {
-            Plot other = this.plot.getRelative(Direction.SOUTH);
-            Location bot = other.getBottomAbs();
-            Location top = this.plot.getTopAbs();
-            Location pos1 = Location.at(this.plot.getWorldName(), bot.getX(), 0, top.getZ());
-            Location pos2 = Location.at(this.plot.getWorldName(), top.getX(), MAX_HEIGHT, bot.getZ());
-            PlotSquared.platform().regionManager().regenerateRegion(pos1, pos2, true, null);
-        } else if (this.plot.getArea().getTerrain() != PlotAreaTerrainType.ALL) { // no road generated => no road to remove
-            this.plot.getManager().removeRoadSouth(this.plot, queue);
-        }
     }
 
     /**
@@ -731,7 +715,7 @@ public final class PlotModificationManager {
                             TaskManager.runTask(whenDone);
                         } else {
                             CuboidRegion region = regions.poll();
-                            Location[] corners = plot.getCorners(plot.getWorldName(), region);
+                            Location[] corners = Plot.getCorners(plot.getWorldName(), region);
                             Location pos1 = corners[0];
                             Location pos2 = corners[1];
                             Location pos3 = pos1.add(offsetX, 0, offsetZ).withWorld(destination.getWorldName());
@@ -770,7 +754,7 @@ public final class PlotModificationManager {
                         }
                         final Runnable task = this;
                         CuboidRegion region = regions.poll();
-                        Location[] corners = PlotModificationManager.this.plot.getCorners(
+                        Location[] corners = Plot.getCorners(
                                 PlotModificationManager.this.plot.getWorldName(),
                                 region
                         );
@@ -788,7 +772,7 @@ public final class PlotModificationManager {
     /**
      * Unlink a plot and remove the roads
      *
-     * @return true if plot was linked
+     * @return {@code true} if plot was linked
      * @see #unlinkPlot(boolean, boolean)
      */
     public boolean unlink() {
@@ -854,11 +838,14 @@ public final class PlotModificationManager {
     /**
      * Delete a plot (use null for the runnable if you don't need to be notified on completion)
      *
+     * <p>
+     * Use {@link PlotModificationManager#clear(boolean, boolean, PlotPlayer, Runnable)} to simply clear a plot
+     * </p>
+     *
      * @param actor    The actor executing the task
      * @param whenDone task to run when plot has been deleted. Nullable
      * @return {@code true} if the deletion was successful, {@code false} if not
      * @see PlotSquared#removePlot(Plot, boolean)
-     * @see PlotModificationManager#clear(boolean, boolean, PlotPlayer, Runnable) to simply clear a plot
      */
     public boolean deletePlot(@Nullable PlotPlayer<?> actor, final Runnable whenDone) {
         if (!this.plot.hasOwner()) {
@@ -901,6 +888,28 @@ public final class PlotModificationManager {
     }
 
     /**
+     * Remove the south road section of a plot<br>
+     * - Used when a plot is merged<br>
+     *
+     * @param queue Nullable {@link QueueCoordinator}. If null, creates own queue and enqueues,
+     *              otherwise writes to the queue but does not enqueue.
+     */
+    public void removeRoadSouth(final @Nullable QueueCoordinator queue) {
+        if (this.plot.getArea().getType() != PlotAreaType.NORMAL && this.plot
+                .getArea()
+                .getTerrain() == PlotAreaTerrainType.ROAD) {
+            Plot other = this.plot.getRelative(Direction.SOUTH);
+            Location bot = other.getBottomAbs();
+            Location top = this.plot.getTopAbs();
+            Location pos1 = Location.at(this.plot.getWorldName(), bot.getX(), plot.getArea().getMinGenHeight(), top.getZ());
+            Location pos2 = Location.at(this.plot.getWorldName(), top.getX(), plot.getArea().getMaxGenHeight(), bot.getZ());
+            PlotSquared.platform().regionManager().regenerateRegion(pos1, pos2, true, null);
+        } else if (this.plot.getArea().getTerrain() != PlotAreaTerrainType.ALL) { // no road generated => no road to remove
+            this.plot.getManager().removeRoadSouth(this.plot, queue);
+        }
+    }
+
+    /**
      * Remove the east road section of a plot<br>
      * - Used when a plot is merged<br>
      *
@@ -914,8 +923,8 @@ public final class PlotModificationManager {
             Plot other = this.plot.getRelative(Direction.EAST);
             Location bot = other.getBottomAbs();
             Location top = this.plot.getTopAbs();
-            Location pos1 = Location.at(this.plot.getWorldName(), top.getX(), 0, bot.getZ());
-            Location pos2 = Location.at(this.plot.getWorldName(), bot.getX(), MAX_HEIGHT, top.getZ());
+            Location pos1 = Location.at(this.plot.getWorldName(), top.getX(), plot.getArea().getMinGenHeight(), bot.getZ());
+            Location pos2 = Location.at(this.plot.getWorldName(), bot.getX(), plot.getArea().getMaxGenHeight(), top.getZ());
             PlotSquared.platform().regionManager().regenerateRegion(pos1, pos2, true, null);
         } else if (this.plot.getArea().getTerrain() != PlotAreaTerrainType.ALL) { // no road generated => no road to remove
             this.plot.getArea().getPlotManager().removeRoadEast(this.plot, queue);
@@ -933,8 +942,8 @@ public final class PlotModificationManager {
                 .getArea()
                 .getTerrain() == PlotAreaTerrainType.ROAD) {
             Plot other = this.plot.getRelative(1, 1);
-            Location pos1 = this.plot.getTopAbs().add(1, 0, 1).withY(0);
-            Location pos2 = other.getBottomAbs().subtract(1, 0, 1).withY(MAX_HEIGHT);
+            Location pos1 = this.plot.getTopAbs().add(1, 0, 1);
+            Location pos2 = other.getBottomAbs().subtract(1, 0, 1);
             PlotSquared.platform().regionManager().regenerateRegion(pos1, pos2, true, null);
         } else if (this.plot.getArea().getTerrain() != PlotAreaTerrainType.ALL) { // no road generated => no road to remove
             this.plot.getArea().getPlotManager().removeRoadSouthEast(this.plot, queue);

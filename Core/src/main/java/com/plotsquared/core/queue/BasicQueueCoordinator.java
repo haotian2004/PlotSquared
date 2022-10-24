@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.queue;
 
@@ -34,6 +27,7 @@ import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.math.BlockVector2;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.util.Location;
+import com.sk89q.worldedit.util.SideEffectSet;
 import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.block.BaseBlock;
@@ -57,11 +51,11 @@ public abstract class BasicQueueCoordinator extends QueueCoordinator {
     private final ConcurrentHashMap<BlockVector2, LocalChunk> blockChunks = new ConcurrentHashMap<>();
     private final List<BlockVector2> readRegion = new ArrayList<>();
     private final List<ProgressSubscriber> progressSubscribers = new ArrayList<>();
-    private long modified;
     private LocalChunk lastWrappedChunk;
     private int lastX = Integer.MIN_VALUE;
     private int lastZ = Integer.MIN_VALUE;
     private boolean settingBiomes = false;
+    private boolean disableBiomes = false;
     private boolean settingTiles = false;
     private boolean regen = false;
     private int[] regenStart;
@@ -69,14 +63,14 @@ public abstract class BasicQueueCoordinator extends QueueCoordinator {
     private CuboidRegion regenRegion = null;
     private Consumer<BlockVector2> consumer = null;
     private boolean unloadAfter = true;
-    private Runnable whenDone;
+    private Runnable whenDone = null;
+    private SideEffectSet sideEffectSet = null;
     @Nullable
     private LightingMode lightingMode = LightingMode.valueOf(Settings.QUEUE.LIGHTING_MODE);
 
     public BasicQueueCoordinator(@NonNull World world) {
         super(world);
         this.world = world;
-        this.modified = System.currentTimeMillis();
     }
 
     @Override
@@ -94,7 +88,6 @@ public abstract class BasicQueueCoordinator extends QueueCoordinator {
 
     @Override
     public final void setModified(long modified) {
-        this.modified = modified;
     }
 
     @Override
@@ -104,7 +97,7 @@ public abstract class BasicQueueCoordinator extends QueueCoordinator {
 
     @Override
     public boolean setBlock(int x, int y, int z, @NonNull BaseBlock id) {
-        if ((y > 255) || (y < 0)) {
+        if ((y > world.getMaxY()) || (y < world.getMinY())) {
             return false;
         }
         LocalChunk chunk = getChunk(x >> 4, z >> 4);
@@ -120,10 +113,14 @@ public abstract class BasicQueueCoordinator extends QueueCoordinator {
         return setBlock(x, y, z, id.toBaseBlock());
     }
 
+    @SuppressWarnings("removal")
     @Override
     public boolean setBiome(int x, int z, @NonNull BiomeType biomeType) {
+        if (disableBiomes) {
+            return false;
+        }
         LocalChunk chunk = getChunk(x >> 4, z >> 4);
-        for (int y = 0; y < 256; y++) {
+        for (int y = world.getMinY(); y <= world.getMaxY(); y++) {
             chunk.setBiome(x & 15, y, z & 15, biomeType);
         }
         settingBiomes = true;
@@ -132,6 +129,9 @@ public abstract class BasicQueueCoordinator extends QueueCoordinator {
 
     @Override
     public final boolean setBiome(int x, int y, int z, @NonNull BiomeType biomeType) {
+        if (disableBiomes) {
+            return false;
+        }
         LocalChunk chunk = getChunk(x >> 4, z >> 4);
         chunk.setBiome(x & 15, y, z & 15, biomeType);
         settingBiomes = true;
@@ -141,6 +141,12 @@ public abstract class BasicQueueCoordinator extends QueueCoordinator {
     @Override
     public boolean isSettingBiomes() {
         return this.settingBiomes;
+    }
+
+    @Override
+    public void setBiomesEnabled(boolean settingBiomes) {
+        this.settingBiomes = settingBiomes;
+        this.disableBiomes = true;
     }
 
     @Override
@@ -271,7 +277,8 @@ public abstract class BasicQueueCoordinator extends QueueCoordinator {
     }
 
     @Override
-    public @Nullable final Consumer<BlockVector2> getChunkConsumer() {
+    public @Nullable
+    final Consumer<BlockVector2> getChunkConsumer() {
         return this.consumer;
     }
 
@@ -293,7 +300,8 @@ public abstract class BasicQueueCoordinator extends QueueCoordinator {
     }
 
     @Override
-    public @NonNull final LightingMode getLightingMode() {
+    public @NonNull
+    final LightingMode getLightingMode() {
         if (lightingMode == null) {
             return LightingMode.valueOf(Settings.QUEUE.LIGHTING_MODE);
         }
@@ -313,6 +321,29 @@ public abstract class BasicQueueCoordinator extends QueueCoordinator {
     @Override
     public void setCompleteTask(Runnable whenDone) {
         this.whenDone = whenDone;
+    }
+
+    @Override
+    public SideEffectSet getSideEffectSet() {
+        return sideEffectSet;
+    }
+
+    @Override
+    public void setSideEffectSet(SideEffectSet sideEffectSet) {
+        this.sideEffectSet = sideEffectSet;
+    }
+
+    // Don't ask about the @NonNull placement. That's how it needs to be else it errors.
+    @Override
+    public void setBiomeCuboid(
+            final com.plotsquared.core.location.@NonNull Location pos1,
+            final com.plotsquared.core.location.@NonNull Location pos2,
+            @NonNull final BiomeType biome
+    ) {
+        if (disableBiomes) {
+            return;
+        }
+        super.setBiomeCuboid(pos1, pos2, biome);
     }
 
     /**

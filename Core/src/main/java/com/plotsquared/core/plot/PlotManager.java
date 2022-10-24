@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.plot;
 
@@ -187,7 +180,7 @@ public abstract class PlotManager {
      * @param plotIds list of PlotIds to finish the merge for
      * @param queue   Nullable {@link QueueCoordinator}. If null, creates own queue and enqueues,
      *                otherwise writes to the queue but does not enqueue.
-     * @return false if part if the merge failed, otherwise true if successful.
+     * @return {@code false} if part if the merge failed, otherwise {@code true} if successful.
      */
     public abstract boolean finishPlotMerge(@NonNull List<PlotId> plotIds, @Nullable QueueCoordinator queue);
 
@@ -214,7 +207,7 @@ public abstract class PlotManager {
      * @return the world height
      * @deprecated In favor of custom world heights within 1.17 and therefore scheduled for removal without replacement
      */
-    @Deprecated(forRemoval = true)
+    @Deprecated(forRemoval = true, since = "6.0.0")
     public int getWorldHeight() {
         return 255;
     }
@@ -224,7 +217,7 @@ public abstract class PlotManager {
      *
      * @param queue Nullable {@link QueueCoordinator}. If null, creates own queue and enqueues,
      *              otherwise writes to the queue but does not enqueue.
-     * @return true if the wall blocks were successfully set
+     * @return {@code true} if the wall blocks were successfully set
      */
     public boolean regenerateAllPlotWalls(@Nullable QueueCoordinator queue) {
         boolean success = true;

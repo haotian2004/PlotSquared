@@ -2,18 +2,18 @@ import java.time.format.DateTimeFormatter
 
 dependencies {
     // Expected everywhere.
-    compileOnlyApi(libs.checkerqual)
+    compileOnlyApi("org.checkerframework:checker-qual")
 
     // Minecraft expectations
-    compileOnlyApi(libs.guava)
-    compileOnlyApi(libs.gson)
+    compileOnlyApi("com.google.code.gson:gson")
+    compileOnly("com.google.guava:guava")
 
     // Platform expectations
-    compileOnlyApi(libs.snakeyaml)
+    compileOnlyApi("org.yaml:snakeyaml")
 
     // Adventure
-    api(libs.adventure)
-    api(libs.minimessage)
+    api("net.kyori:adventure-api")
+    api("net.kyori:adventure-text-minimessage")
 
     // Guice
     api(libs.guice) {
@@ -22,29 +22,28 @@ dependencies {
     api(libs.guiceassistedinject) {
         exclude("com.google.inject", "guice")
     }
-    compileOnlyApi(libs.findbugs)
+    api(libs.spotbugs)
 
     // Plugins
-    compileOnlyApi(libs.worldeditCore) {
+    compileOnly(libs.worldeditCore) {
         exclude(group = "bukkit-classloader-check")
         exclude(group = "mockito-core")
         exclude(group = "dummypermscompat")
     }
     testImplementation(libs.worldeditCore)
-    compileOnlyApi(libs.fastasyncworldeditCore)
-    testImplementation(libs.fastasyncworldeditCore)
+    compileOnly("com.fastasyncworldedit:FastAsyncWorldEdit-Core") { isTransitive = false }
+    testImplementation("com.fastasyncworldedit:FastAsyncWorldEdit-Core") { isTransitive = false }
 
     // Logging
-    compileOnlyApi(libs.log4j)
+    compileOnlyApi("org.apache.logging.log4j:log4j-api")
 
     // Other libraries
     api(libs.prtree)
     api(libs.aopalliance)
-    api(libs.pipeline) {
-        exclude(group = "com.google.guava")
-    }
+    api(libs.cloudServices)
     api(libs.arkitektonika)
-    api(libs.paster)
+    api("com.intellectualsites.paster:Paster")
+    api("com.intellectualsites.informative-annotations:informative-annotations")
 }
 
 tasks.processResources {
@@ -54,5 +53,24 @@ tasks.processResources {
                 "commit" to rootProject.grgit.head().abbreviatedId,
                 "date" to rootProject.grgit.head().dateTime.format(DateTimeFormatter.ofPattern("yy.MM.dd"))
         )
+    }
+
+    doLast {
+        copy {
+            from(File("$rootDir/LICENSE"))
+            into("$buildDir/resources/main/")
+        }
+    }
+}
+
+tasks {
+    withType<Javadoc> {
+        val opt = options as StandardJavadocDocletOptions
+        opt.links("https://docs.enginehub.org/javadoc/com.sk89q.worldedit/worldedit-core/" + libs.worldeditCore.get().versionConstraint.toString())
+        opt.links("https://jd.adventure.kyori.net/api/4.9.3/")
+        opt.links("https://google.github.io/guice/api-docs/" + libs.guice.get().versionConstraint.toString() + "/javadoc/")
+        opt.links("https://checkerframework.org/api/")
+        opt.links("https://javadoc.io/doc/com.intellectualsites.informative-annotations/informative-annotations/latest/")
+        opt.encoding("UTF-8")
     }
 }

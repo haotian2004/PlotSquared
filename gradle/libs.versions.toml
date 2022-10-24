@@ -1,96 +1,53 @@
 [versions]
-checker-qual = "3.14.0"
+# Platform expectations
+guice = "5.1.0"
+spotbugs = "4.7.3"
 
-guava = "21.0" # Version set by Minecraft
-gson = "2.8.0" # Version set by Minecraft
-
-snakeyaml = "1.28" # Version set by Bukkit
-
-adventure-api = "4.8.1"
-adventure-text-minimessage = "4.1.0-SNAPSHOT"
-adventure-platform-bukkit = "4.0.0-SNAPSHOT"
-
-guice = "5.0.1"
-findbugs = "3.0.1"
-
-worldedit = "7.2.6-SNAPSHOT"
-fawe = "1.17-74"
-vault = "1.7"
-placeholderapi = "2.10.9"
-luckperms = "5.3"
-essentialsx = "2.18.2"
-hyperverse = "0.6.0-SNAPSHOT"
-
-log4j-api = "2.14.1" # Version set by Minecraft
-
-prtree = "1.7.0-SNAPSHOT"
-aopalliance = "1.0"
-pipeline = "1.4.0-SNAPSHOT"
-
-arkitektonika = "2.0-SNAPSHOT"
-paster = "1.0.2-SNAPSHOT"
-
-bstats = "2.2.1"
-
-paper = "1.17-R0.1-SNAPSHOT"
-paperlib = "1.0.6"
-
+# Plugins
+worldedit = "7.2.12"
+placeholderapi = "2.11.2"
+luckperms = "5.4"
+essentialsx = "2.19.7"
 mvdwapi = "3.1.1"
-squirrelid = "1.0.0-SNAPSHOT"
-serverlib = "2.2.1"
-http4j = "1.1-SNAPSHOT"
+
+# Third party
+prtree = "2.0.0"
+aopalliance = "1.0"
+cloud-services = "1.7.1"
+arkitektonika = "2.1.1"
+squirrelid = "0.3.1"
+http4j = "1.3"
+
+# Gradle plugins
+shadow = "7.1.2"
+grgit = "4.1.1"
+licenser = "0.6.1"
+nexus = "1.1.0"
 
 [libraries]
-# Expected everywhere.
-checkerqual = { group = "org.checkerframework", name = "checker-qual", version.ref = "checker-qual" }
-
-# Minecraft expectations
-guava = { group = "com.google.guava", name = "guava", version.ref = "guava" }
-gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
-
 # Platform expectations
-snakeyaml = { group = "org.yaml", name = "snakeyaml", version.ref = "snakeyaml" }
-
-# Adventure
-adventure = { group = "net.kyori", name = "adventure-api", version.ref = "adventure-api" }
-minimessage = { group = "net.kyori", name = "adventure-text-minimessage", version.ref = "adventure-text-minimessage" }
-platform = { group = "net.kyori", name = "adventure-platform-bukkit", version.ref = "adventure-platform-bukkit" }
-
-# Guice
 guice = { group = "com.google.inject", name = "guice", version.ref = "guice" }
 guiceassistedinject = { group = "com.google.inject.extensions", name = "guice-assistedinject", version.ref = "guice" }
-findbugs = { group = "com.google.code.findbugs", name = "annotations", version.ref = "findbugs" }
+spotbugs = { group = "com.github.spotbugs", name = "spotbugs-annotations", version.ref = "spotbugs" }
 
 # Plugins
 worldeditCore = { group = "com.sk89q.worldedit", name = "worldedit-core", version.ref = "worldedit" }
 worldeditBukkit = { group = "com.sk89q.worldedit", name = "worldedit-bukkit", version.ref = "worldedit" }
-fastasyncworldeditBukkit = { group = "com.fastasyncworldedit", name = "FAWE-Bukkit", version.ref = "fawe" }
-fastasyncworldeditCore = { group = "com.fastasyncworldedit", name = "FAWE-Core", version.ref = "fawe" }
-vault = { group = "com.github.MilkBowl", name = "VaultAPI", version.ref = "vault" }
 placeholderapi = { group = "me.clip", name = "placeholderapi", version.ref = "placeholderapi" }
 luckperms = { group = "net.luckperms", name = "api", version.ref = "luckperms" }
-essentialsx = { group = "net.ess3", name = "EssentialsX", version.ref = "essentialsx" }
-hyperverse = { group = "se.hyperver.hyperverse", name = "Core", version.ref = "hyperverse" }
+essentialsx = { group = "net.essentialsx", name = "EssentialsX", version.ref = "essentialsx" }
 
-# Logging
-log4j = { group = "org.apache.logging.log4j", name = "log4j-api", version.ref = "log4j-api" }
-
-# Other libraries
-prtree = { group = "org.khelekore", name = "prtree", version.ref = "prtree" }
+# Third party
+prtree = { group = "com.intellectualsites.prtree", name = "PRTree", version.ref = "prtree" }
 aopalliance = { group = "aopalliance", name = "aopalliance", version.ref = "aopalliance" }
-pipeline = { group = "com.intellectualsites", name = "Pipeline", version.ref = "pipeline" }
-mvdwapi = { group = "be.maximvdw", name = "MVdWPlaceholderAPI", version.ref = "mvdwapi" }
-squirrelid = { group = "com.sk89q", name = "squirrelid", version.ref = "squirrelid" }
-serverlib = { group = "org.incendo.serverlib", name = "ServerLib", version.ref = "serverlib" }
-
-# Our libraries
+cloudServices = { group = "cloud.commandframework", name = "cloud-services", version.ref = "cloud-services" }
+mvdwapi = { group = "com.intellectualsites.mvdwplaceholderapi", name = "MVdWPlaceholderAPI", version.ref = "mvdwapi" }
+squirrelid = { group = "org.enginehub", name = "squirrelid", version.ref = "squirrelid" }
 arkitektonika = { group = "com.intellectualsites.arkitektonika", name = "Arkitektonika-Client", version.ref = "arkitektonika" }
 http4j = { group = "com.intellectualsites.http", name = "HTTP4J", version.ref = "http4j" }
-paster = { group = "com.intellectualsites.paster", name = "Paster", version.ref = "paster" }
 
-# Metrics
-bstats = { group = "org.bstats", name = "bstats-bukkit", version.ref = "bstats" }
-
-# Paper
-paper = { group = "io.papermc.paper", name = "paper-api", version.ref = "paper" }
-paperlib = { group = "io.papermc", name = "paperlib", version.ref = "paperlib" }
+[plugins]
+shadow = { id = "com.github.johnrengelman.shadow", version.ref = "shadow" }
+grgit = { id = "org.ajoberstar.grgit", version.ref = "grgit" }
+licenser = { id = "org.cadixdev.licenser", version.ref = "licenser" }
+nexus = { id = "io.github.gradle-nexus.publish-plugin", version.ref = "nexus" }

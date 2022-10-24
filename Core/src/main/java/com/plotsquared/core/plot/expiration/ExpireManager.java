@@ -1,30 +1,25 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.plot.expiration;
 
+import com.google.inject.Inject;
+import com.plotsquared.core.PlotPlatform;
 import com.plotsquared.core.PlotSquared;
 import com.plotsquared.core.configuration.caption.Caption;
 import com.plotsquared.core.configuration.caption.Templates;
@@ -67,6 +62,10 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class ExpireManager {
 
+    /**
+     * @deprecated Use {@link PlotPlatform#expireManager()} instead
+     */
+    @Deprecated(forRemoval = true, since = "6.10.2")
     public static ExpireManager IMP;
     private final ConcurrentHashMap<UUID, Long> dates_cache;
     private final ConcurrentHashMap<UUID, Long> account_age_cache;
@@ -78,6 +77,7 @@ public class ExpireManager {
      */
     private int running;
 
+    @Inject
     public ExpireManager(final @NonNull EventDispatcher eventDispatcher) {
         this.tasks = new ArrayDeque<>();
         this.dates_cache = new ConcurrentHashMap<>();
@@ -136,18 +136,18 @@ public class ExpireManager {
     }
 
     public void confirmExpiry(final PlotPlayer<?> pp) {
-        try (final MetaDataAccess<Boolean> metaDataAccess = pp.accessTemporaryMetaData(
-                PlayerMetaDataKeys.TEMPORARY_IGNORE_EXPIRE_TASK)) {
-            if (metaDataAccess.isPresent()) {
-                return;
-            }
-            if (plotsToDelete != null && !plotsToDelete.isEmpty() && pp.hasPermission("plots.admin.command.autoclear")) {
-                final int num = plotsToDelete.size();
-                while (!plotsToDelete.isEmpty()) {
-                    Iterator<Plot> iter = plotsToDelete.iterator();
-                    final Plot current = iter.next();
-                    if (!isExpired(new ArrayDeque<>(tasks), current).isEmpty()) {
-                        TaskManager.runTask(() -> {
+        TaskManager.runTask(() -> {
+            try (final MetaDataAccess<Boolean> metaDataAccess = pp.accessTemporaryMetaData(
+                    PlayerMetaDataKeys.TEMPORARY_IGNORE_EXPIRE_TASK)) {
+                if (metaDataAccess.isPresent()) {
+                    return;
+                }
+                if (plotsToDelete != null && !plotsToDelete.isEmpty() && pp.hasPermission("plots.admin.command.autoclear")) {
+                    final int num = plotsToDelete.size();
+                    while (!plotsToDelete.isEmpty()) {
+                        Iterator<Plot> iter = plotsToDelete.iterator();
+                        final Plot current = iter.next();
+                        if (!isExpired(new ArrayDeque<>(tasks), current).isEmpty()) {
                             metaDataAccess.set(true);
                             current.getCenter(pp::teleport);
                             metaDataAccess.remove();
@@ -171,15 +171,15 @@ public class ExpireManager {
                                     cmd_keep,
                                     cmd_no_show_expir
                             );
-                        });
-                        return;
-                    } else {
-                        iter.remove();
+                            return;
+                        } else {
+                            iter.remove();
+                        }
                     }
+                    plotsToDelete.clear();
                 }
-                plotsToDelete.clear();
             }
-        }
+        });
     }
 
 
@@ -216,24 +216,20 @@ public class ExpireManager {
                 applicable.add(et);
             }
         }
-
         if (applicable.isEmpty()) {
             return new ArrayList<>();
         }
 
+        // Don't delete server plots
         if (plot.getFlag(ServerPlotFlag.class)) {
             return new ArrayList<>();
         }
 
-        long diff = getAge(plot);
-        if (diff == 0) {
-            return new ArrayList<>();
-        }
         // Filter out non old plots
         boolean shouldCheckAccountAge = false;
         for (int i = 0; i < applicable.size(); i++) {
             ExpiryTask et = applicable.poll();
-            if (et.applies(diff)) {
+            if (et.applies(getAge(plot, et.shouldDeleteForUnknownOwner()))) {
                 applicable.add(et);
                 shouldCheckAccountAge |= et.getSettings().SKIP_ACCOUNT_AGE_DAYS != -1;
             }
@@ -243,9 +239,9 @@ public class ExpireManager {
         }
         // Check account age
         if (shouldCheckAccountAge) {
-            long accountAge = getAge(plot);
             for (int i = 0; i < applicable.size(); i++) {
                 ExpiryTask et = applicable.poll();
+                long accountAge = getAge(plot, et.shouldDeleteForUnknownOwner());
                 if (et.appliesAccountAge(accountAge)) {
                     applicable.add(et);
                 }
@@ -309,9 +305,9 @@ public class ExpireManager {
             return false;
         }
         this.running = 2;
-        final ConcurrentLinkedDeque<Plot> plots =
-                new ConcurrentLinkedDeque<>(PlotQuery.newQuery().allPlots().asList());
         TaskManager.runTaskAsync(new Runnable() {
+            private ConcurrentLinkedDeque<Plot> plots = null;
+
             @Override
             public void run() {
                 final Runnable task = this;
@@ -319,7 +315,9 @@ public class ExpireManager {
                     ExpireManager.this.running = 0;
                     return;
                 }
-                long start = System.currentTimeMillis();
+                if (plots == null) {
+                    plots = new ConcurrentLinkedDeque<>(PlotQuery.newQuery().allPlots().asList());
+                }
                 while (!plots.isEmpty()) {
                     if (ExpireManager.this.running != 2) {
                         ExpireManager.this.running = 0;
@@ -362,7 +360,7 @@ public class ExpireManager {
                                                 .getFlag(AnalysisFlag.class)
                                                 .createFlagInstance(changed.asList());
                                         PlotFlagAddEvent event =
-                                                new PlotFlagAddEvent(plotFlag, newPlot);
+                                                eventDispatcher.callFlagAdd(plotFlag, plot);
                                         if (event.getEventResult() == Result.DENY) {
                                             return;
                                         }
@@ -426,8 +424,11 @@ public class ExpireManager {
                     .callUnlink(plot.getArea(), plot, true, false,
                             PlotUnlinkEvent.REASON.EXPIRE_DELETE
                     );
-            if (event.getEventResult() != Result.DENY) {
-                plot.getPlotModificationManager().unlinkPlot(event.isCreateRoad(), event.isCreateSign());
+            if (event.getEventResult() != Result.DENY && plot.getPlotModificationManager().unlinkPlot(
+                    event.isCreateRoad(),
+                    event.isCreateSign()
+            )) {
+                this.eventDispatcher.callPostUnlink(plot, PlotUnlinkEvent.REASON.EXPIRE_DELETE);
             }
         }
         for (UUID helper : plot.getTrusted()) {
@@ -451,7 +452,20 @@ public class ExpireManager {
         plot.getPlotModificationManager().deletePlot(null, whenDone);
     }
 
+    @Deprecated(forRemoval = true, since = "6.4.0")
     public long getAge(UUID uuid) {
+        return getAge(uuid, false);
+    }
+
+    /**
+     * Get the age (last play time) of the passed player
+     *
+     * @param uuid                     the uuid of the owner to check against
+     * @param shouldDeleteUnknownOwner {@code true} if an unknown player should be counted as never online
+     * @return the millis since the player was last online, or {@link Long#MAX_VALUE} if player was never online
+     * @since 6.4.0
+     */
+    public long getAge(UUID uuid, final boolean shouldDeleteUnknownOwner) {
         if (PlotSquared.platform().playerManager().getPlayerIfExists(uuid) != null) {
             return 0;
         }
@@ -461,7 +475,7 @@ public class ExpireManager {
             if (opp != null && (last = opp.getLastPlayed()) != 0) {
                 this.dates_cache.put(uuid, last);
             } else {
-                return 0;
+                return shouldDeleteUnknownOwner ? Long.MAX_VALUE : 0;
             }
         }
         if (last == 0) {
@@ -470,7 +484,7 @@ public class ExpireManager {
         return System.currentTimeMillis() - last;
     }
 
-    public long getAge(Plot plot) {
+    public long getAge(Plot plot, final boolean shouldDeleteUnknownOwner) {
         if (!plot.hasOwner() || Objects.equals(DBFunc.EVERYONE, plot.getOwner())
                 || PlotSquared.platform().playerManager().getPlayerIfExists(plot.getOwner()) != null || plot.getRunning() > 0) {
             return 0;
@@ -492,7 +506,7 @@ public class ExpireManager {
         }
         long min = Long.MAX_VALUE;
         for (UUID owner : plot.getOwners()) {
-            long age = getAge(owner);
+            long age = getAge(owner, shouldDeleteUnknownOwner);
             if (age < min) {
                 min = age;
             }

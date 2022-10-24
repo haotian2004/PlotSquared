@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.util;
 
@@ -71,10 +64,10 @@ import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockTypes;
-import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -127,7 +120,7 @@ public abstract class SchematicHandler {
         this.subscriberFactory = subscriberFactory;
     }
 
-    @Deprecated(forRemoval = true)
+    @Deprecated(forRemoval = true, since = "6.0.0")
     public static void upload(
             @Nullable UUID uuid,
             final @Nullable String file,
@@ -305,12 +298,13 @@ public abstract class SchematicHandler {
             final int WIDTH = dimension.getX();
             final int LENGTH = dimension.getZ();
             final int HEIGHT = dimension.getY();
+            final int worldHeight = plot.getArea().getMaxGenHeight() - plot.getArea().getMinGenHeight() + 1;
             // Validate dimensions
             CuboidRegion region = plot.getLargestRegion();
             boolean sizeMismatch =
                     ((region.getMaximumPoint().getX() - region.getMinimumPoint().getX() + xOffset + 1) < WIDTH) || (
                             (region.getMaximumPoint().getZ() - region.getMinimumPoint().getZ() + zOffset + 1) < LENGTH) || (HEIGHT
-                            > 256);
+                            > worldHeight);
             if (!Settings.Schematics.PASTE_MISMATCHES && sizeMismatch) {
                 actor.sendMessage(TranslatableCaption.of("schematics.schematic_size_mismatch"));
                 TaskManager.runTask(whenDone);
@@ -321,14 +315,14 @@ public abstract class SchematicHandler {
             // Calculate the optimal height to paste the schematic at
             final int y_offset_actual;
             if (autoHeight) {
-                if (HEIGHT >= 256) {
+                if (HEIGHT >= worldHeight) {
                     y_offset_actual = yOffset;
                 } else {
                     PlotArea pw = plot.getArea();
                     if (pw instanceof ClassicPlotWorld) {
                         y_offset_actual = yOffset + pw.getMinBuildHeight() + ((ClassicPlotWorld) pw).PLOT_HEIGHT;
                     } else {
-                        y_offset_actual = yOffset + 1 + this.worldUtil
+                        y_offset_actual = yOffset + pw.getMinBuildHeight() + this.worldUtil
                                 .getHighestBlockSynchronous(plot.getWorldName(), region.getMinimumPoint().getX() + 1,
                                         region.getMinimumPoint().getZ() + 1
                                 );
@@ -360,9 +354,9 @@ public abstract class SchematicHandler {
             // Paste schematic here
             final QueueCoordinator queue = plot.getArea().getQueue();
 
-            for (int ry = 0; ry < Math.min(256, HEIGHT); ry++) {
+            for (int ry = 0; ry < Math.min(worldHeight, HEIGHT); ry++) {
                 int yy = y_offset_actual + ry;
-                if (yy > 255 || yy < 0) {
+                if (yy > plot.getArea().getMaxGenHeight() || yy < plot.getArea().getMinGenHeight()) {
                     continue;
                 }
                 for (int rz = 0; rz < blockArrayClipboard.getDimensions().getZ(); rz++) {
@@ -379,18 +373,18 @@ public abstract class SchematicHandler {
                         BlockVector3 loc = BlockVector3.at(rx, ry, rz);
                         BaseBlock id = blockArrayClipboard.getFullBlock(loc);
                         queue.setBlock(xx, yy, zz, id);
-                        if (ry == 0) {
-                            BiomeType biome = blockArrayClipboard.getBiome(loc);
-                            queue.setBiome(xx, yy, zz, biome);
-                        }
+                        BiomeType biome = blockArrayClipboard.getBiome(loc);
+                        queue.setBiome(xx, yy, zz, biome);
                     }
                 }
             }
             if (actor != null && Settings.QUEUE.NOTIFY_PROGRESS) {
                 queue.addProgressSubscriber(subscriberFactory.createWithActor(actor));
             }
-            whenDone.value = true;
-            queue.setCompleteTask(whenDone);
+            if (whenDone != null) {
+                whenDone.value = true;
+                queue.setCompleteTask(whenDone);
+            }
             queue.enqueue();
         } catch (Exception e) {
             e.printStackTrace();
@@ -520,7 +514,7 @@ public abstract class SchematicHandler {
         return null;
     }
 
-    @Deprecated(forRemoval = true)
+    @Deprecated(forRemoval = true, since = "6.0.0")
     public void upload(final CompoundTag tag, UUID uuid, String file, RunnableVal<URL> whenDone) {
         if (tag == null) {
             TaskManager.runTask(whenDone);
@@ -543,7 +537,7 @@ public abstract class SchematicHandler {
      *
      * @param tag  to save
      * @param path to save in
-     * @return true if succeeded
+     * @return {@code true} if succeeded
      */
     public boolean save(CompoundTag tag, String path) {
         if (tag == null) {
@@ -580,6 +574,10 @@ public abstract class SchematicHandler {
         schematic.put("Palette", new CompoundTag(paletteTag));
         schematic.put("BlockData", new ByteArrayTag(buffer.toByteArray()));
         schematic.put("BlockEntities", new ListTag(CompoundTag.class, tileEntities));
+
+        if (biomeBuffer.size() == 0 || biomePalette.size() == 0) {
+            return;
+        }
 
         schematic.put("BiomePaletteMax", new IntTag(biomePalette.size()));
 

@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.uuid;
 
@@ -33,10 +26,10 @@ import com.plotsquared.core.player.ConsolePlayer;
 import com.plotsquared.core.util.ThreadUtils;
 import com.plotsquared.core.util.task.TaskManager;
 import net.kyori.adventure.text.minimessage.MiniMessage;
-import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -215,9 +208,9 @@ public class UUIDPipeline {
      */
     public void getSingle(final @NonNull String username, final @NonNull BiConsumer<@Nullable UUID, @Nullable Throwable> uuid) {
         this.getUUIDs(Collections.singletonList(username)).applyToEither(
-                timeoutAfter(Settings.UUID.NON_BLOCKING_TIMEOUT),
-                Function.identity()
-        )
+                        timeoutAfter(Settings.UUID.NON_BLOCKING_TIMEOUT),
+                        Function.identity()
+                )
                 .whenComplete((uuids, throwable) -> {
                     if (throwable != null) {
                         uuid.accept(null, throwable);
@@ -239,9 +232,9 @@ public class UUIDPipeline {
      */
     public void getSingle(final @NonNull UUID uuid, final @NonNull BiConsumer<@Nullable String, @Nullable Throwable> username) {
         this.getNames(Collections.singletonList(uuid)).applyToEither(
-                timeoutAfter(Settings.UUID.NON_BLOCKING_TIMEOUT),
-                Function.identity()
-        )
+                        timeoutAfter(Settings.UUID.NON_BLOCKING_TIMEOUT),
+                        Function.identity()
+                )
                 .whenComplete((uuids, throwable) -> {
                     if (throwable != null) {
                         username.accept(null, throwable);
@@ -427,7 +420,8 @@ public class UUIDPipeline {
      *
      * @return All mappings that could be provided immediately
      */
-    public @NonNull final Collection<@NonNull UUIDMapping> getAllImmediately() {
+    public @NonNull
+    final Collection<@NonNull UUIDMapping> getAllImmediately() {
         final Set<UUIDMapping> mappings = new LinkedHashSet<>();
         for (final UUIDService service : this.getServiceListInstance()) {
             mappings.addAll(service.getImmediately());
@@ -441,7 +435,8 @@ public class UUIDPipeline {
      * @param object Username ({@link String}) or {@link UUID}
      * @return Mapping, if it could be found immediately
      */
-    public @Nullable final UUIDMapping getImmediately(final @NonNull Object object) {
+    public @Nullable
+    final UUIDMapping getImmediately(final @NonNull Object object) {
         for (final UUIDService uuidService : this.getServiceListInstance()) {
             final UUIDMapping mapping = uuidService.getImmediately(object);
             if (mapping != null) {

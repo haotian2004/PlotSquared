@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.plot.expiration;
 
@@ -236,8 +229,10 @@ public class PlotAnalysis {
                 int optimalIndex = (int) Math.round((1 - threshold) * (n - 1));
 
                 LOGGER.info("- Calculating rank correlation: ");
-                LOGGER.info("- The analyzed plots which were processed and put into bulk data will be compared and correlated to the plot ranking");
-                LOGGER.info("- The calculated correlation constant will then be used to calibrate the threshold for auto plot clearing");
+                LOGGER.info(
+                        "- The analyzed plots which were processed and put into bulk data will be compared and correlated to the plot ranking");
+                LOGGER.info(
+                        "- The calculated correlation constant will then be used to calibrate the threshold for auto plot clearing");
 
                 Settings.Auto_Clear settings = new Settings.Auto_Clear();
 
@@ -381,8 +376,8 @@ public class PlotAnalysis {
                     logln(getCC(n, sum(square(getSD(rankComplexity, rankRatings)))));
                     if (optimalComplexity == Integer.MAX_VALUE) {
                         LOGGER.info("Insufficient data to determine correlation! {} | {}",
-                                    optimalIndex, n
-                            );
+                                optimalIndex, n
+                        );
                         running = false;
                         for (Plot plot : plots) {
                             plot.removeRunning();
@@ -556,6 +551,7 @@ public class PlotAnalysis {
         return ranks;
     }
 
+    @SuppressWarnings("unchecked")
     public static void sort(int[] input) {
         int SIZE = 10;
         List<Integer>[] bucket = new ArrayList[SIZE];

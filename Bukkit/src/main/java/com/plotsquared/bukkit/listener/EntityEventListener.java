@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.bukkit.listener;
 
@@ -48,6 +41,7 @@ import com.plotsquared.core.util.Permissions;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.world.block.BlockType;
 import org.bukkit.Material;
+import org.bukkit.Particle;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Ageable;
@@ -166,8 +160,8 @@ public class EntityEventListener implements Listener {
             case "PATROL":
             case "RAID":
             case "SHEARED":
-            case "SHOULDER_ENTITY":
             case "SILVERFISH_BLOCK":
+            case "ENDER_PEARL":
             case "TRAP":
             case "VILLAGE_DEFENSE":
             case "VILLAGE_INVASION":
@@ -207,7 +201,7 @@ public class EntityEventListener implements Listener {
             }
             return;
         }
-        if (BukkitEntityUtil.checkEntity(entity, plot)) {
+        if (BukkitEntityUtil.checkEntity(entity, plot.getBasePlot(false))) {
             event.setCancelled(true);
         }
     }
@@ -324,6 +318,10 @@ public class EntityEventListener implements Listener {
             }
         }
         event.setCancelled(true);
+        //Spawn Explosion Particles when enabled in settings
+        if (Settings.General.ALWAYS_SHOW_EXPLOSIONS) {
+            event.getLocation().getWorld().spawnParticle(Particle.EXPLOSION_HUGE, event.getLocation(), 0);
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -350,7 +348,8 @@ public class EntityEventListener implements Listener {
                 // trampling farmland
                 BlockType blockType = BukkitAdapter.asBlockType(type);
                 if (!this.eventDispatcher.checkPlayerBlockEvent(pp,
-                        PlayerBlockEventType.TRIGGER_PHYSICAL, location, blockType, true)) {
+                        PlayerBlockEventType.TRIGGER_PHYSICAL, location, blockType, true
+                )) {
                     event.setCancelled(true);
                 }
                 return;
@@ -371,14 +370,14 @@ public class EntityEventListener implements Listener {
             if (shooter instanceof Player) {
                 PlotPlayer<?> pp = BukkitUtil.adapt((Player) shooter);
                 if (plot == null) {
-                    if (!Permissions.hasPermission(pp, Permission.PERMISSION_PROJECTILE_UNOWNED)) {
+                    if (!Permissions.hasPermission(pp, Permission.PERMISSION_ADMIN_PROJECTILE_UNOWNED)) {
                         entity.remove();
                         event.setCancelled(true);
                     }
                     return;
                 }
                 if (plot.isAdded(pp.getUUID()) || Permissions
-                        .hasPermission(pp, Permission.PERMISSION_PROJECTILE_OTHER)) {
+                        .hasPermission(pp, Permission.PERMISSION_ADMIN_PROJECTILE_OTHER)) {
                     return;
                 }
                 entity.remove();

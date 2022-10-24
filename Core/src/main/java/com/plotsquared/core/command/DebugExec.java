@@ -1,31 +1,25 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.command;
 
 import com.google.inject.Inject;
+import com.plotsquared.core.PlotSquared;
 import com.plotsquared.core.configuration.caption.StaticCaption;
 import com.plotsquared.core.configuration.caption.TranslatableCaption;
 import com.plotsquared.core.events.PlotFlagRemoveEvent;
@@ -49,6 +43,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -80,7 +75,8 @@ public class DebugExec extends SubCommand {
     @Override
     public boolean onCommand(final PlotPlayer<?> player, String[] args) {
         List<String> allowedParams = Arrays
-                .asList("analyze",
+                .asList(
+                        "analyze",
                         "calibrate-analysis",
                         "start-expire",
                         "stop-expire",
@@ -144,10 +140,7 @@ public class DebugExec extends SubCommand {
                     return true;
                 }
                 case "start-expire" -> {
-                    if (ExpireManager.IMP == null) {
-                        ExpireManager.IMP = new ExpireManager(this.eventDispatcher);
-                    }
-                    if (ExpireManager.IMP.runAutomatedTask()) {
+                    if (PlotSquared.platform().expireManager().runAutomatedTask()) {
                         player.sendMessage(TranslatableCaption.of("debugexec.expiry_started"));
                     } else {
                         player.sendMessage(TranslatableCaption.of("debugexec.expiry_already_started"));
@@ -155,7 +148,7 @@ public class DebugExec extends SubCommand {
                     return true;
                 }
                 case "stop-expire" -> {
-                    if (ExpireManager.IMP == null || !ExpireManager.IMP.cancelTask()) {
+                    if (!PlotSquared.platform().expireManager().cancelTask()) {
                         player.sendMessage(TranslatableCaption.of("debugexec.task_halted"));
                     } else {
                         player.sendMessage(TranslatableCaption.of("debugexec.task_cancelled"));
@@ -206,7 +199,7 @@ public class DebugExec extends SubCommand {
                     }
                     boolean result;
                     if (HybridUtils.regions != null) {
-                        result = this.hybridUtils.scheduleRoadUpdate(area, HybridUtils.regions, 0, new HashSet<>());
+                        result = this.hybridUtils.scheduleRoadUpdate(area, HybridUtils.regions, 0, new LinkedHashSet<>());
                     } else {
                         result = this.hybridUtils.scheduleRoadUpdate(area, 0);
                     }

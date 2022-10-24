@@ -1,32 +1,27 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.command;
 
+import com.google.inject.Inject;
 import com.plotsquared.core.PlotSquared;
 import com.plotsquared.core.configuration.Settings;
+import com.plotsquared.core.configuration.caption.CaptionUtility;
 import com.plotsquared.core.configuration.caption.StaticCaption;
 import com.plotsquared.core.configuration.caption.Templates;
 import com.plotsquared.core.configuration.caption.TranslatableCaption;
@@ -43,6 +38,7 @@ import com.plotsquared.core.plot.flag.InternalFlag;
 import com.plotsquared.core.plot.flag.PlotFlag;
 import com.plotsquared.core.plot.flag.types.IntegerFlag;
 import com.plotsquared.core.plot.flag.types.ListFlag;
+import com.plotsquared.core.util.EventDispatcher;
 import com.plotsquared.core.util.MathMan;
 import com.plotsquared.core.util.Permissions;
 import com.plotsquared.core.util.StringComparison;
@@ -78,8 +74,12 @@ import java.util.stream.Stream;
 @SuppressWarnings("unused")
 public final class FlagCommand extends Command {
 
-    public FlagCommand() {
+    private final EventDispatcher eventDispatcher;
+
+    @Inject
+    public FlagCommand(final @NonNull EventDispatcher eventDispatcher) {
         super(MainCommand.getInstance(), true);
+        this.eventDispatcher = eventDispatcher;
     }
 
     private static boolean sendMessage(PlotPlayer<?> player) {
@@ -101,22 +101,23 @@ public final class FlagCommand extends Command {
             try {
                 int numeric = Integer.parseInt(value);
                 perm = perm.substring(0, perm.length() - value.length() - 1);
+                boolean result = false;
                 if (numeric > 0) {
                     int checkRange = PlotSquared.get().getPlatform().equalsIgnoreCase("bukkit") ?
                             numeric :
                             Settings.Limit.MAX_PLOTS;
-                    final boolean result = player.hasPermissionRange(perm, checkRange) >= numeric;
-                    if (!result) {
-                        player.sendMessage(
-                                TranslatableCaption.of("permission.no_permission"),
-                                Template.of(
-                                        "node",
-                                        Permission.PERMISSION_SET_FLAG_KEY_VALUE.format(key.toLowerCase(), value.toLowerCase())
-                                )
-                        );
-                    }
-                    return result;
+                    result = player.hasPermissionRange(perm, checkRange) >= numeric;
                 }
+                if (!result) {
+                    player.sendMessage(
+                            TranslatableCaption.of("permission.no_permission"),
+                            Template.of(
+                                    "node",
+                                    perm + "." + numeric
+                            )
+                    );
+                }
+                return result;
             } catch (NumberFormatException ignore) {
             }
         } else if (flag instanceof final ListFlag<?, ?> listFlag) {
@@ -146,7 +147,14 @@ public final class FlagCommand extends Command {
             }
             return true;
         }
-        final boolean result = Permissions.hasPermission(player, perm);
+        boolean result;
+        String basePerm = Permission.PERMISSION_SET_FLAG_KEY.format(key.toLowerCase());
+        if (flag.isValuedPermission()) {
+            result = Permissions.hasKeyedPermission(player, basePerm, value);
+        } else {
+            result = Permissions.hasPermission(player, basePerm);
+            perm = basePerm;
+        }
         if (!result) {
             player.sendMessage(TranslatableCaption.of("permission.no_permission"), Template.of("node", perm));
         }
@@ -156,7 +164,7 @@ public final class FlagCommand extends Command {
     /**
      * Checks if the player is allowed to modify the flags at their current location
      *
-     * @return true if the player is allowed to modify the flags at their current location
+     * @return {@code true} if the player is allowed to modify the flags at their current location
      */
     private static boolean checkRequirements(final @NonNull PlotPlayer<?> player) {
         final Location location = player.getLocation();
@@ -326,7 +334,7 @@ public final class FlagCommand extends Command {
             return;
         }
         Plot plot = player.getLocation().getPlotAbs();
-        PlotFlagAddEvent event = new PlotFlagAddEvent(plotFlag, plot);
+        PlotFlagAddEvent event = eventDispatcher.callFlagAdd(plotFlag, plot);
         if (event.getEventResult() == Result.DENY) {
             player.sendMessage(
                     TranslatableCaption.of("events.event_denied"),
@@ -335,10 +343,11 @@ public final class FlagCommand extends Command {
             return;
         }
         boolean force = event.getEventResult() == Result.FORCE;
-        final String value = StringMan.join(Arrays.copyOfRange(args, 1, args.length), " ");
+        String value = StringMan.join(Arrays.copyOfRange(args, 1, args.length), " ");
         if (!force && !checkPermValue(player, plotFlag, args[0], value)) {
             return;
         }
+        value = CaptionUtility.stripClickEvents(plotFlag, value);
         final PlotFlag<?, ?> parsed;
         try {
             parsed = plotFlag.parse(value);
@@ -353,9 +362,11 @@ public final class FlagCommand extends Command {
         }
         plot.setFlag(parsed);
         player.sendMessage(TranslatableCaption.of("flag.flag_added"), Template.of("flag", String.valueOf(args[0])),
-                Template.of("value", String.valueOf(parsed)));
+                Template.of("value", String.valueOf(parsed))
+        );
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     @CommandDeclaration(command = "add",
             aliases = {"a", "add"},
             usage = "/plot flag add <flag> <value>",
@@ -382,7 +393,7 @@ public final class FlagCommand extends Command {
             return;
         }
         Plot plot = player.getLocation().getPlotAbs();
-        PlotFlagAddEvent event = new PlotFlagAddEvent(plotFlag, plot);
+        PlotFlagAddEvent event = eventDispatcher.callFlagAdd(plotFlag, plot);
         if (event.getEventResult() == Result.DENY) {
             player.sendMessage(
                     TranslatableCaption.of("events.event_denied"),
@@ -420,9 +431,11 @@ public final class FlagCommand extends Command {
             return;
         }
         player.sendMessage(TranslatableCaption.of("flag.flag_added"), Template.of("flag", String.valueOf(args[0])),
-                Template.of("value", String.valueOf(parsed)));
+                Template.of("value", String.valueOf(parsed))
+        );
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     @CommandDeclaration(command = "remove",
             aliases = {"r", "remove", "delete"},
             usage = "/plot flag remove <flag> [values]",
@@ -449,7 +462,8 @@ public final class FlagCommand extends Command {
             return;
         }
         final Plot plot = player.getLocation().getPlotAbs();
-        PlotFlagRemoveEvent event = new PlotFlagRemoveEvent(flag, plot);
+        final PlotFlag<?, ?> flagWithOldValue = plot.getFlagContainer().getFlag(flag.getClass());
+        PlotFlagRemoveEvent event = eventDispatcher.callFlagRemove(flag, plot);
         if (event.getEventResult() == Result.DENY) {
             player.sendMessage(
                     TranslatableCaption.of("events.event_denied"),
@@ -493,7 +507,7 @@ public final class FlagCommand extends Command {
                     if (plot.removeFlag(flag)) {
                         player.sendMessage(TranslatableCaption.of("flag.flag_removed"), Template.of("flag", args[0]), Template.of(
                                 "value",
-                                String.valueOf(flag)
+                                String.valueOf(flagWithOldValue)
                         ));
                         return;
                     } else {
@@ -502,7 +516,7 @@ public final class FlagCommand extends Command {
                     }
                 } else {
                     PlotFlag<?, ?> plotFlag = parsedFlag.createFlagInstance(list);
-                    PlotFlagAddEvent addEvent = new PlotFlagAddEvent(plotFlag, plot);
+                    PlotFlagAddEvent addEvent = eventDispatcher.callFlagAdd(plotFlag, plot);
                     if (addEvent.getEventResult() == Result.DENY) {
                         player.sendMessage(
                                 TranslatableCaption.of("events.event_denied"),
@@ -529,8 +543,9 @@ public final class FlagCommand extends Command {
                 return;
             }
         }
-        player.sendMessage(TranslatableCaption.of("flag.flag_removed"), Template.of("flag", args[0]), Template.of("value",
-                String.valueOf(flag)
+        player.sendMessage(TranslatableCaption.of("flag.flag_removed"), Template.of("flag", args[0]), Template.of(
+                "value",
+                String.valueOf(flagWithOldValue)
         ));
     }
 
@@ -572,7 +587,8 @@ public final class FlagCommand extends Command {
             while (flagIterator.hasNext()) {
                 final String flag = flagIterator.next();
                 builder.append(MINI_MESSAGE
-                        .parse(TranslatableCaption.of("flag.flag_list_flag").getComponent(player),
+                        .parse(
+                                TranslatableCaption.of("flag.flag_list_flag").getComponent(player),
                                 Template.of("command", "/plot flag info " + flag),
                                 Template.of("flag", flag),
                                 Template.of("suffix", flagIterator.hasNext() ? ", " : "")

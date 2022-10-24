@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.database;
 
@@ -30,6 +23,7 @@ import com.plotsquared.core.PlotSquared;
 import com.plotsquared.core.configuration.ConfigurationSection;
 import com.plotsquared.core.configuration.Settings;
 import com.plotsquared.core.configuration.Storage;
+import com.plotsquared.core.configuration.caption.CaptionUtility;
 import com.plotsquared.core.configuration.file.YamlConfiguration;
 import com.plotsquared.core.inject.annotations.WorldConfig;
 import com.plotsquared.core.listener.PlotListener;
@@ -50,9 +44,9 @@ import com.plotsquared.core.util.HashUtil;
 import com.plotsquared.core.util.StringMan;
 import com.plotsquared.core.util.task.RunnableVal;
 import com.plotsquared.core.util.task.TaskManager;
-import org.checkerframework.checker.nullness.qual.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -100,7 +94,9 @@ public class SQLManager implements AbstractDB {
     private final String prefix;
     private final Database database;
     private final boolean mySQL;
+    @SuppressWarnings({"unused", "FieldCanBeLocal"})
     private final EventDispatcher eventDispatcher;
+    @SuppressWarnings({"unused", "FieldCanBeLocal"})
     private final PlotListener plotListener;
     private final YamlConfiguration worldConfiguration;
     /**
@@ -407,7 +403,6 @@ public class SQLManager implements AbstractDB {
                 while (iterator.hasNext()) {
                     try {
                         Entry<Plot, Queue<UniqueStatement>> entry = iterator.next();
-                        Plot plot = entry.getKey();
                         Queue<UniqueStatement> tasks = entry.getValue();
                         if (tasks.isEmpty()) {
                             iterator.remove();
@@ -1935,7 +1930,7 @@ public class SQLManager implements AbstractDB {
                             } else if (Settings.Enabled_Components.DATABASE_PURGER) {
                                 toDelete.add(id);
                             } else {
-                                LOGGER.info("Entry #{}({}) in `plot_rating` does not exist."
+                                LOGGER.warn("Entry #{}({}) in `plot_rating` does not exist."
                                         + " Create this plot or set `database-purger: true` in settings.yml", id, plot);
                             }
                         }
@@ -1963,7 +1958,7 @@ public class SQLManager implements AbstractDB {
                         } else if (Settings.Enabled_Components.DATABASE_PURGER) {
                             toDelete.add(id);
                         } else {
-                            LOGGER.info("Entry #{}({}) in `plot_helpers` does not exist."
+                            LOGGER.warn("Entry #{}({}) in `plot_helpers` does not exist."
                                     + " Create this plot or set `database-purger: true` in settings.yml", id, plot);
                         }
                     }
@@ -1990,7 +1985,7 @@ public class SQLManager implements AbstractDB {
                         } else if (Settings.Enabled_Components.DATABASE_PURGER) {
                             toDelete.add(id);
                         } else {
-                            LOGGER.info("Entry #{}({}) in `plot_trusted` does not exist."
+                            LOGGER.warn("Entry #{}({}) in `plot_trusted` does not exist."
                                     + " Create this plot or set `database-purger: true` in settings.yml", id, plot);
                         }
                     }
@@ -2017,7 +2012,7 @@ public class SQLManager implements AbstractDB {
                         } else if (Settings.Enabled_Components.DATABASE_PURGER) {
                             toDelete.add(id);
                         } else {
-                            LOGGER.info("Entry #{}({}) in `plot_denied` does not exist."
+                            LOGGER.warn("Entry #{}({}) in `plot_denied` does not exist."
                                     + " Create this plot or set `database-purger: true` in settings.yml", id, plot);
                         }
                     }
@@ -2033,7 +2028,7 @@ public class SQLManager implements AbstractDB {
                     while (resultSet.next()) {
                         id = resultSet.getInt("plot_id");
                         final String flag = resultSet.getString("flag");
-                        final String value = resultSet.getString("value");
+                        String value = resultSet.getString("value");
                         final Plot plot = plots.get(id);
                         if (plot != null) {
                             final PlotFlag<?, ?> plotFlag =
@@ -2041,6 +2036,7 @@ public class SQLManager implements AbstractDB {
                             if (plotFlag == null) {
                                 plot.getFlagContainer().addUnknownFlag(flag, value);
                             } else {
+                                value = CaptionUtility.stripClickEvents(plotFlag, value);
                                 try {
                                     plot.getFlagContainer().addFlag(plotFlag.parse(value));
                                 } catch (final FlagParseException e) {
@@ -2058,7 +2054,7 @@ public class SQLManager implements AbstractDB {
                         } else if (Settings.Enabled_Components.DATABASE_PURGER) {
                             toDelete.add(id);
                         } else {
-                            LOGGER.info("Entry #{}({}) in `plot_flags` does not exist."
+                            LOGGER.warn("Entry #{}({}) in `plot_flags` does not exist."
                                     + " Create this plot or set `database-purger: true` in settings.yml", id, plot);
                         }
                     }
@@ -2097,6 +2093,7 @@ public class SQLManager implements AbstractDB {
                                 case "default":
                                 case "0,0,0":
                                 case "center":
+                                case "centre":
                                     break;
                                 default:
                                     try {
@@ -2113,7 +2110,7 @@ public class SQLManager implements AbstractDB {
                         } else if (Settings.Enabled_Components.DATABASE_PURGER) {
                             toDelete.add(id);
                         } else {
-                            LOGGER.info("Entry #{}({}) in `plot_settings` does not exist."
+                            LOGGER.warn("Entry #{}({}) in `plot_settings` does not exist."
                                     + " Create this plot or set `database-purger: true` in settings.yml", id, plot);
                         }
                     }
@@ -2292,8 +2289,6 @@ public class SQLManager implements AbstractDB {
                     int size = uniqueIdsList.size();
                     int packet = 990;
                     int amount = size / packet;
-                    int count = 0;
-                    int last = -1;
                     for (int j = 0; j <= amount; j++) {
                         List<Integer> subList =
                                 uniqueIdsList.subList(j * packet, Math.min(size, (j + 1) * packet));
@@ -2944,6 +2939,7 @@ public class SQLManager implements AbstractDB {
                             case "default":
                             case "0,0,0":
                             case "center":
+                            case "centre":
                                 break;
                             default:
                                 try {
@@ -3196,6 +3192,7 @@ public class SQLManager implements AbstractDB {
         return true;
     }
 
+    @SuppressWarnings({"unchecked", "unused"})
     @Override
     public void validateAllPlots(Set<Plot> toValidate) {
         if (!isValid()) {
@@ -3388,22 +3385,19 @@ public class SQLManager implements AbstractDB {
                                 .toString() + "' WHERE `owner` = '" + old.toString() + '\'');
                 stmt.executeUpdate(
                         "UPDATE `" + SQLManager.this.prefix + "cluster_helpers` SET `user_uuid` = '"
-                                + now.toString() + "' WHERE `user_uuid` = '" + old.toString() + '\'');
+                                + now + "' WHERE `user_uuid` = '" + old + '\'');
                 stmt.executeUpdate(
                         "UPDATE `" + SQLManager.this.prefix + "cluster_invited` SET `user_uuid` = '"
-                                + now.toString() + "' WHERE `user_uuid` = '" + old.toString() + '\'');
+                                + now + "' WHERE `user_uuid` = '" + old + '\'');
                 stmt.executeUpdate(
-                        "UPDATE `" + SQLManager.this.prefix + "plot` SET `owner` = '" + now.toString()
-                                + "' WHERE `owner` = '" + old.toString() + '\'');
+                        "UPDATE `" + SQLManager.this.prefix + "plot` SET `owner` = '" + now
+                                + "' WHERE `owner` = '" + old + '\'');
                 stmt.executeUpdate(
-                        "UPDATE `" + SQLManager.this.prefix + "plot_denied` SET `user_uuid` = '" + now
-                                .toString() + "' WHERE `user_uuid` = '" + old.toString() + '\'');
+                        "UPDATE `" + SQLManager.this.prefix + "plot_denied` SET `user_uuid` = '" + now + "' WHERE `user_uuid` = '" + old + '\'');
                 stmt.executeUpdate(
-                        "UPDATE `" + SQLManager.this.prefix + "plot_helpers` SET `user_uuid` = '" + now
-                                .toString() + "' WHERE `user_uuid` = '" + old.toString() + '\'');
+                        "UPDATE `" + SQLManager.this.prefix + "plot_helpers` SET `user_uuid` = '" + now + "' WHERE `user_uuid` = '" + old + '\'');
                 stmt.executeUpdate(
-                        "UPDATE `" + SQLManager.this.prefix + "plot_trusted` SET `user_uuid` = '" + now
-                                .toString() + "' WHERE `user_uuid` = '" + old.toString() + '\'');
+                        "UPDATE `" + SQLManager.this.prefix + "plot_trusted` SET `user_uuid` = '" + now + "' WHERE `user_uuid` = '" + old + '\'');
             } catch (SQLException e) {
                 e.printStackTrace();
             }
@@ -3454,15 +3448,7 @@ public class SQLManager implements AbstractDB {
 
     }
 
-    private static class UUIDPair {
-
-        public final int id;
-        public final UUID uuid;
-
-        public UUIDPair(int id, UUID uuid) {
-            this.id = id;
-            this.uuid = uuid;
-        }
+    private record UUIDPair(int id, UUID uuid) {
 
     }
 

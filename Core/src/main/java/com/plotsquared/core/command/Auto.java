@@ -1,33 +1,25 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.command;
 
-import com.google.common.reflect.TypeToken;
+import cloud.commandframework.services.ServicePipeline;
 import com.google.inject.Inject;
-import com.intellectualsites.services.ServicePipeline;
 import com.plotsquared.core.PlotSquared;
 import com.plotsquared.core.configuration.Settings;
 import com.plotsquared.core.configuration.caption.TranslatableCaption;
@@ -51,6 +43,7 @@ import com.plotsquared.core.util.PlotExpression;
 import com.plotsquared.core.util.task.AutoClaimFinishTask;
 import com.plotsquared.core.util.task.RunnableVal;
 import com.plotsquared.core.util.task.TaskManager;
+import io.leangen.geantyref.TypeToken;
 import net.kyori.adventure.text.minimessage.Template;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -84,7 +77,7 @@ public class Auto extends SubCommand {
         this.eventDispatcher = eventDispatcher;
         this.econHandler = econHandler;
         this.servicePipeline = servicePipeline;
-        this.servicePipeline.registerServiceType(TypeToken.of(AutoService.class), new AutoService.DefaultAutoService());
+        this.servicePipeline.registerServiceType(TypeToken.get(AutoService.class), new AutoService.DefaultAutoService());
         final AutoService.MultiPlotService multiPlotService = new AutoService.MultiPlotService();
         this.servicePipeline.registerServiceImplementation(AutoService.class, multiPlotService,
                 Collections.singletonList(multiPlotService)
@@ -209,48 +202,39 @@ public class Auto extends SubCommand {
                 return false;
             }
         }
-        int size_x = 1;
-        int size_z = 1;
+        int sizeX = 1;
+        int sizeZ = 1;
         String schematic = null;
         boolean mega = false;
         if (args.length > 0) {
             try {
-                String[] split = args[0].split(",|;");
-                switch (split.length) {
-                    case 1 -> {
-                        size_x = 1;
-                        size_z = 1;
-                    }
-                    case 2 -> {
-                        size_x = Integer.parseInt(split[0]);
-                        size_z = Integer.parseInt(split[1]);
-                    }
-                    default -> {
-                        player.sendMessage(
-                                TranslatableCaption.of("commandconfig.command_syntax"),
-                                Template.of("value", getUsage())
-                        );
-                        return true;
-                    }
+                String[] split = args[0].split("[,;]");
+                if (split.length == 2) {
+                    sizeX = Integer.parseInt(split[0]);
+                    sizeZ = Integer.parseInt(split[1]);
+                } else {
+                    player.sendMessage(
+                            TranslatableCaption.of("commandconfig.command_syntax"),
+                            Template.of("value", getUsage())
+                    );
+                    return true;
                 }
-                if (size_x < 1 || size_z < 1) {
-                    player.sendMessage(TranslatableCaption.of("error.plot_size"));
+                if (sizeX < 1 || sizeZ < 1) {
+                    player.sendMessage(TranslatableCaption.of("error.plot_size_negative"));
+                    return true;
                 }
                 if (args.length > 1) {
                     schematic = args[1];
                 }
                 mega = true;
             } catch (NumberFormatException ignored) {
-                size_x = 1;
-                size_z = 1;
+                sizeX = 1;
+                sizeZ = 1;
                 schematic = args[0];
-                // PlayerFunctions.sendMessage(plr,
-                // "&cError: Invalid size (X,Y)");
-                // return false;
             }
         }
         PlayerAutoPlotEvent event = this.eventDispatcher
-                .callAuto(player, plotarea, schematic, size_x, size_z);
+                .callAuto(player, plotarea, schematic, sizeX, sizeZ);
         if (event.getEventResult() == Result.DENY) {
             player.sendMessage(
                     TranslatableCaption.of("events.event_denied"),
@@ -259,16 +243,17 @@ public class Auto extends SubCommand {
             return true;
         }
         boolean force = event.getEventResult() == Result.FORCE;
-        size_x = event.getSize_x();
-        size_z = event.getSize_z();
+        sizeX = event.getSizeX();
+        sizeZ = event.getSizeZ();
         schematic = event.getSchematic();
         if (!force && mega && !Permissions.hasPermission(player, Permission.PERMISSION_AUTO_MEGA)) {
             player.sendMessage(
                     TranslatableCaption.of("permission.no_permission"),
                     Template.of("node", String.valueOf(Permission.PERMISSION_AUTO_MEGA))
             );
+            return false;
         }
-        if (!force && size_x * size_z > Settings.Claim.MAX_AUTO_AREA) {
+        if (!force && sizeX * sizeZ > Settings.Claim.MAX_AUTO_AREA) {
             player.sendMessage(
                     TranslatableCaption.of("permission.cant_claim_more_plots_num"),
                     Template.of("amount", String.valueOf(Settings.Claim.MAX_AUTO_AREA))
@@ -279,7 +264,7 @@ public class Auto extends SubCommand {
         try (final MetaDataAccess<Boolean> metaDataAccess =
                      player.accessTemporaryMetaData(PlayerMetaDataKeys.TEMPORARY_AUTO)) {
             if (!force && (metaDataAccess.get().orElse(false) || !checkAllowedPlots(player,
-                    plotarea, allowed_plots, size_x, size_z
+                    plotarea, allowed_plots, sizeX, sizeZ
             ))) {
                 return false;
             }
@@ -311,7 +296,7 @@ public class Auto extends SubCommand {
             double cost = costExp.evaluate(Settings.Limit.GLOBAL ?
                     player.getPlotCount() :
                     player.getPlotCount(plotarea.getWorldName()));
-            cost = (size_x * size_z) * cost;
+            cost = (sizeX * sizeZ) * cost;
             if (cost > 0d) {
                 if (!this.econHandler.isSupported()) {
                     player.sendMessage(TranslatableCaption.of("economy.vault_or_consumer_null"));
@@ -333,10 +318,12 @@ public class Auto extends SubCommand {
             }
         }
 
-        final List<Plot> plots = this.servicePipeline
-                .pump(new AutoService.AutoQuery(player, null, size_x, size_z, plotarea))
+        List<Plot> plots = this.servicePipeline
+                .pump(new AutoService.AutoQuery(player, null, sizeX, sizeZ, plotarea))
                 .through(AutoService.class)
                 .getResult();
+
+        plots = this.eventDispatcher.callAutoPlotsChosen(player, plots).getPlots();
 
         if (plots.isEmpty()) {
             player.sendMessage(TranslatableCaption.of("errors.no_free_plots"));
@@ -346,7 +333,12 @@ public class Auto extends SubCommand {
         } else {
             final Iterator<Plot> plotIterator = plots.iterator();
             while (plotIterator.hasNext()) {
-                plotIterator.next().claim(player, !plotIterator.hasNext(), null);
+                Plot plot = plotIterator.next();
+                if (!plot.canClaim(player)) {
+                    continue;
+                }
+                plot.claim(player, !plotIterator.hasNext(), null, true, true);
+                eventDispatcher.callPostAuto(player, plot);
             }
             final PlotAutoMergeEvent mergeEvent = this.eventDispatcher.callAutoMerge(
                     plots.get(0),

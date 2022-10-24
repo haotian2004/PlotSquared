@@ -8,7 +8,7 @@ repositories {
 
     maven {
         name = "PaperMC"
-        url = uri("https://papermc.io/repo/repository/maven-public/")
+        url = uri("https://repo.papermc.io/repository/maven-public/")
     }
 
     maven {
@@ -21,39 +21,39 @@ dependencies {
     api(projects.plotSquaredCore)
 
     // Metrics
-    implementation(libs.bstats)
+    implementation("org.bstats:bstats-bukkit")
 
     // Paper
-    compileOnlyApi(libs.paper)
-    implementation(libs.paperlib)
+    compileOnly("io.papermc.paper:paper-api")
+    implementation("io.papermc:paperlib")
 
     // Plugins
     compileOnly(libs.worldeditBukkit) {
         exclude(group = "org.bukkit")
         exclude(group = "org.spigotmc")
     }
-    compileOnlyApi(libs.fastasyncworldeditBukkit)
-    testImplementation(libs.fastasyncworldeditBukkit)
-    compileOnly(libs.vault) {
+    compileOnly("com.fastasyncworldedit:FastAsyncWorldEdit-Bukkit") { isTransitive = false }
+    testImplementation("com.fastasyncworldedit:FastAsyncWorldEdit-Bukkit") { isTransitive = false }
+    compileOnly("com.github.MilkBowl:VaultAPI") {
         exclude(group = "org.bukkit")
     }
     compileOnly(libs.placeholderapi)
     compileOnly(libs.luckperms)
     compileOnly(libs.essentialsx)
-    compileOnly(libs.hyperverse) { isTransitive = false }
     compileOnly(libs.mvdwapi) { isTransitive = false }
 
     // Other libraries
     implementation(libs.squirrelid) { isTransitive = false }
-    implementation(libs.serverlib)
+    implementation("dev.notmyfault.serverlib:ServerLib")
 
     // Our libraries
     implementation(libs.arkitektonika)
     implementation(libs.http4j)
-    implementation(libs.paster)
+    implementation("com.intellectualsites.paster:Paster")
+    implementation("com.intellectualsites.informative-annotations:informative-annotations")
 
     // Adventure
-    implementation(libs.platform)
+    implementation("net.kyori:adventure-platform-bukkit")
 }
 
 tasks.processResources {
@@ -71,15 +71,24 @@ tasks.named<ShadowJar>("shadowJar") {
     relocate("net.kyori.examination", "com.plotsquared.core.configuration.examination")
     relocate("io.papermc.lib", "com.plotsquared.bukkit.paperlib")
     relocate("org.bstats", "com.plotsquared.metrics")
-    relocate("com.sk89q.squirrelid", "com.plotsquared.squirrelid")
+    relocate("org.enginehub", "com.plotsquared.squirrelid")
     relocate("org.khelekore.prtree", "com.plotsquared.prtree")
     relocate("com.google.inject", "com.plotsquared.google")
     relocate("org.aopalliance", "com.plotsquared.core.aopalliance")
-    relocate("com.intellectualsites.services", "com.plotsquared.core.services")
+    relocate("cloud.commandframework.services", "com.plotsquared.core.services")
+    relocate("io.leangen.geantyref", "com.plotsquared.core.geantyref")
     relocate("com.intellectualsites.arkitektonika", "com.plotsquared.core.arkitektonika")
     relocate("com.intellectualsites.http", "com.plotsquared.core.http")
     relocate("com.intellectualsites.paster", "com.plotsquared.core.paster")
     relocate("org.incendo.serverlib", "com.plotsquared.bukkit.serverlib")
+    relocate("org.jetbrains", "com.plotsquared.core.annotations")
+    relocate("org.intellij.lang", "com.plotsquared.core.intellij.annotations")
+    relocate("javax.annotation", "com.plotsquared.core.annotation")
+    relocate("com.github.spotbugs", "com.plotsquared.core.spotbugs")
+    relocate("javax.inject", "com.plotsquared.core.annotation.inject")
+    relocate("net.jcip", "com.plotsquared.core.annotations.jcip")
+    relocate("edu.umd.cs.findbugs", "com.plotsquared.core.annotations.findbugs")
+    relocate("com.intellectualsites.informative-annotations", "com.plotsquared.core.annotation.informative")
 
     // Get rid of all the libs which are 100% unused.
     minimize()
@@ -90,11 +99,12 @@ tasks.named<ShadowJar>("shadowJar") {
 tasks {
     withType<Javadoc> {
         val opt = options as StandardJavadocDocletOptions
-        opt.links("https://papermc.io/javadocs/paper/1.17/")
-        opt.links("https://docs.enginehub.org/javadoc/com.sk89q.worldedit/worldedit-core/7.2.6-SNAPSHOT/")
-        opt.links("https://docs.enginehub.org/javadoc/com.sk89q.worldedit/worldedit-bukkit/7.2.6-SNAPSHOT/")
-        opt.links("https://jd.adventure.kyori.net/api/4.8.1/")
-        opt.links("https://google.github.io/guice/api-docs/5.0.1/javadoc/")
+        opt.links("https://jd.papermc.io/paper/1.18/")
+        opt.links("https://docs.enginehub.org/javadoc/com.sk89q.worldedit/worldedit-bukkit/" + libs.worldeditBukkit.get().versionConstraint.toString())
+        opt.links("https://intellectualsites.github.io/plotsquared-javadocs/core/")
+        opt.links("https://jd.adventure.kyori.net/api/4.9.3/")
+        opt.links("https://google.github.io/guice/api-docs/" + libs.guice.get().versionConstraint.toString() + "/javadoc/")
         opt.links("https://checkerframework.org/api/")
+        opt.encoding("UTF-8")
     }
 }

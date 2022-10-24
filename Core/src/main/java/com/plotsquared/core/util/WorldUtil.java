@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.util;
 
@@ -39,6 +32,7 @@ import com.sk89q.jnbt.Tag;
 import com.sk89q.worldedit.math.BlockVector2;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
+import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockType;
@@ -55,6 +49,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URL;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -77,11 +72,26 @@ public abstract class WorldUtil {
      * @param p2x   Max X
      * @param p2z   Max Z
      * @param biome Biome
+     * @deprecated use {@link WorldUtil#setBiome(String, CuboidRegion, BiomeType)}
      */
+    @Deprecated(forRemoval = true)
     public static void setBiome(String world, int p1x, int p1z, int p2x, int p2z, BiomeType biome) {
-        BlockVector3 pos1 = BlockVector2.at(p1x, p1z).toBlockVector3();
-        BlockVector3 pos2 = BlockVector2.at(p2x, p2z).toBlockVector3(Plot.MAX_HEIGHT - 1);
+        World weWorld = PlotSquared.platform().worldUtil().getWeWorld(world);
+        BlockVector3 pos1 = BlockVector2.at(p1x, p1z).toBlockVector3(weWorld.getMinY());
+        BlockVector3 pos2 = BlockVector2.at(p2x, p2z).toBlockVector3(weWorld.getMaxY());
         CuboidRegion region = new CuboidRegion(pos1, pos2);
+        PlotSquared.platform().worldUtil().setBiomes(world, region, biome);
+    }
+
+    /**
+     * Set the biome in a region
+     *
+     * @param world  World name
+     * @param region Region
+     * @param biome  Biome
+     * @since 6.6.0
+     */
+    public static void setBiome(String world, final CuboidRegion region, BiomeType biome) {
         PlotSquared.platform().worldUtil().setBiomes(world, region, biome);
     }
 
@@ -100,7 +110,8 @@ public abstract class WorldUtil {
      * @deprecated May result in synchronous chunk loading
      */
     @Deprecated
-    public @NonNull abstract String[] getSignSynchronous(@NonNull Location location);
+    public @NonNull
+    abstract String[] getSignSynchronous(@NonNull Location location);
 
     /**
      * Get the world spawn location
@@ -108,7 +119,8 @@ public abstract class WorldUtil {
      * @param world World name
      * @return World spawn location
      */
-    public @NonNull abstract Location getSpawn(@NonNull String world);
+    public @NonNull
+    abstract Location getSpawn(@NonNull String world);
 
     /**
      * Set the world spawn location
@@ -130,7 +142,8 @@ public abstract class WorldUtil {
      * @param name Block name
      * @return Comparison result containing the closets matching block
      */
-    public @NonNull abstract StringComparison<BlockState>.ComparisonResult getClosestBlock(@NonNull String name);
+    public @NonNull
+    abstract StringComparison<BlockState>.ComparisonResult getClosestBlock(@NonNull String name);
 
     /**
      * Set the block at the specified location to a sign, with given text
@@ -165,7 +178,8 @@ public abstract class WorldUtil {
      * @deprecated Use {@link #getBiome(String, int, int, Consumer)}
      */
     @Deprecated
-    public @NonNull abstract BiomeType getBiomeSynchronous(@NonNull String world, int x, int z);
+    public @NonNull
+    abstract BiomeType getBiomeSynchronous(@NonNull String world, int x, int z);
 
     /**
      * Get the block at a given location (asynchronously)
@@ -183,7 +197,8 @@ public abstract class WorldUtil {
      * @deprecated Use {@link #getBlock(Location, Consumer)}
      */
     @Deprecated
-    public @NonNull abstract BlockState getBlockSynchronous(@NonNull Location location);
+    public @NonNull
+    abstract BlockState getBlockSynchronous(@NonNull Location location);
 
     /**
      * Get the Y coordinate of the highest non-air block in the world, asynchronously
@@ -211,11 +226,14 @@ public abstract class WorldUtil {
     /**
      * Set the biome in a region
      *
-     * @param world  World name
-     * @param region Region
-     * @param biome  New biome
+     * @param worldName World name
+     * @param region    Region
+     * @param biome     New biome
      */
-    public abstract void setBiomes(@NonNull String world, @NonNull CuboidRegion region, @NonNull BiomeType biome);
+    public void setBiomes(@NonNull String worldName, @NonNull CuboidRegion region, @NonNull BiomeType biome) {
+        final World world = getWeWorld(worldName);
+        region.forEach(bv -> world.setBiome(bv, biome));
+    }
 
     /**
      * Get the WorldEdit {@link com.sk89q.worldedit.world.World} corresponding to a world name
@@ -240,7 +258,7 @@ public abstract class WorldUtil {
             final @Nullable String file,
             final @NonNull RunnableVal<URL> whenDone
     ) {
-        plot.getHome(home -> SchematicHandler.upload(uuid, file, "zip", new RunnableVal<OutputStream>() {
+        plot.getHome(home -> SchematicHandler.upload(uuid, file, "zip", new RunnableVal<>() {
             @Override
             public void run(OutputStream output) {
                 try (final ZipOutputStream zos = new ZipOutputStream(output)) {
@@ -250,16 +268,23 @@ public abstract class WorldUtil {
                         ZipEntry ze = new ZipEntry("world" + File.separator + dat.getName());
                         zos.putNextEntry(ze);
                         try (NBTInputStream nis = new NBTInputStream(new GZIPInputStream(new FileInputStream(dat)))) {
-                            CompoundTag tag = (CompoundTag) nis.readNamedTag().getTag();
-                            CompoundTag data = (CompoundTag) tag.getValue().get("Data");
-                            Map<String, Tag> map = ReflectionUtils.getMap(data.getValue());
-                            map.put("SpawnX", new IntTag(home.getX()));
-                            map.put("SpawnY", new IntTag(home.getY()));
-                            map.put("SpawnZ", new IntTag(home.getZ()));
+                            Map<String, Tag> tag = ((CompoundTag) nis.readNamedTag().getTag()).getValue();
+                            Map<String, Tag> newMap = new HashMap<>();
+                            for (Map.Entry<String, Tag> entry : tag.entrySet()) {
+                                if (!entry.getKey().equals("Data")) {
+                                    newMap.put(entry.getKey(), entry.getValue());
+                                    continue;
+                                }
+                                Map<String, Tag> data = new HashMap<>(((CompoundTag) entry.getValue()).getValue());
+                                data.put("SpawnX", new IntTag(home.getX()));
+                                data.put("SpawnY", new IntTag(home.getY()));
+                                data.put("SpawnZ", new IntTag(home.getZ()));
+                                newMap.put("Data", new CompoundTag(data));
+                            }
                             try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
                                 try (NBTOutputStream out = new NBTOutputStream(new GZIPOutputStream(baos, true))) {
                                     //TODO Find what this should be called
-                                    out.writeNamedTag("Schematic????", tag);
+                                    out.writeNamedTag("Schematic????", new CompoundTag(newMap));
                                 }
                                 zos.write(baos.toByteArray());
                             }
@@ -267,6 +292,7 @@ public abstract class WorldUtil {
                     }
                     setSpawn(spawn);
                     byte[] buffer = new byte[1024];
+                    Set<BlockVector2> added = new HashSet<>();
                     for (Plot current : plot.getConnectedPlots()) {
                         Location bot = current.getBottomAbs();
                         Location top = current.getTopAbs();
@@ -276,13 +302,14 @@ public abstract class WorldUtil {
                         int trz = top.getZ() >> 9;
                         Set<BlockVector2> files = getChunkChunks(bot.getWorldName());
                         for (BlockVector2 mca : files) {
-                            if (mca.getX() >= brx && mca.getX() <= trx && mca.getZ() >= brz && mca.getZ() <= trz) {
+                            if (mca.getX() >= brx && mca.getX() <= trx && mca.getZ() >= brz && mca.getZ() <= trz && !added.contains(mca)) {
                                 final File file = getMcr(plot.getWorldName(), mca.getX(), mca.getZ());
                                 if (file != null) {
                                     //final String name = "r." + (x - cx) + "." + (z - cz) + ".mca";
                                     String name = file.getName();
                                     final ZipEntry ze = new ZipEntry("world" + File.separator + "region" + File.separator + name);
                                     zos.putNextEntry(ze);
+                                    added.add(mca);
                                     try (FileInputStream in = new FileInputStream(file)) {
                                         int len;
                                         while ((len = in.read(buffer)) > 0) {
@@ -354,7 +381,7 @@ public abstract class WorldUtil {
      *
      * @param block1 First block
      * @param block2 Second block
-     * @return {@code true} if the blocks have the same type, {@code false} if not
+     * @return {@code true} if the blocks have the same type, {@code false} if not
      */
     public abstract boolean isBlockSame(@NonNull BlockState block1, @NonNull BlockState block2);
 
@@ -398,14 +425,16 @@ public abstract class WorldUtil {
      * @param category Entity category
      * @return Set containing all entities belonging to the given category
      */
-    public @NonNull abstract Set<EntityType> getTypesInCategory(@NonNull String category);
+    public @NonNull
+    abstract Set<EntityType> getTypesInCategory(@NonNull String category);
 
     /**
      * Get all recognized tile entity types
      *
      * @return Collection containing all known tile entity types
      */
-    public @NonNull abstract Collection<BlockType> getTileEntityTypes();
+    public @NonNull
+    abstract Collection<BlockType> getTileEntityTypes();
 
     /**
      * Get the tile entity count in a chunk

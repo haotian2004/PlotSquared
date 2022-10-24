@@ -1,30 +1,24 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.plot.expiration;
 
+import com.plotsquared.core.PlotSquared;
 import com.plotsquared.core.configuration.Settings;
 import com.plotsquared.core.plot.Plot;
 import com.plotsquared.core.plot.PlotArea;
@@ -75,12 +69,13 @@ public class ExpiryTask {
                     plots = plots != null ? plots : getPlotsToCheck();
                     int diff = settings.REQUIRED_PLOTS;
                     boolean min = true;
-                    if (settings.REQUIRED_PLOTS - plots.size() < settings.REQUIRED_PLOTS) {
+                    if (plots.size() > settings.REQUIRED_PLOTS) {
                         min = false;
-                        diff = settings.REQUIRED_PLOTS - plots.size();
+                        diff = plots.size() - settings.REQUIRED_PLOTS;
                     }
+                    ExpireManager expireManager = PlotSquared.platform().expireManager();
                     List<Long> entireList =
-                            plots.stream().map(plot -> ExpireManager.IMP.getAge(plot))
+                            plots.stream().map(plot -> expireManager.getAge(plot, settings.DELETE_IF_OWNER_IS_UNKNOWN))
                                     .collect(Collectors.toList());
                     List<Long> top = new ArrayList<>(diff + 1);
                     if (diff > 1000) {
@@ -157,5 +152,13 @@ public class ExpiryTask {
         return settings.CONFIRMATION;
     }
 
+    /**
+     * Returns {@code true} if this task respects unknown owners
+     * @return {@code true} if unknown owners should be counted as never online
+     * @since 6.4.0
+     */
+    public boolean shouldDeleteForUnknownOwner() {
+        return settings.DELETE_IF_OWNER_IS_UNKNOWN;
+    }
 
 }

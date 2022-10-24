@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.bukkit.schematic;
 
@@ -35,15 +28,18 @@ import com.sk89q.jnbt.Tag;
 import com.sk89q.worldedit.blocks.BaseItemStack;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.world.item.ItemType;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
 import org.bukkit.block.Sign;
+import org.bukkit.block.Skull;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -56,6 +52,11 @@ public class StateWrapper {
     public org.bukkit.block.BlockState state = null;
     public CompoundTag tag = null;
 
+    /**
+     * @deprecated in favour of using WE methods for obtaining NBT, specifically by obtaining a
+     *         {@link com.sk89q.worldedit.world.block.BaseBlock} and then using {@link com.sk89q.worldedit.world.block.BaseBlock#getNbtData()}
+     */
+    @Deprecated(forRemoval = true, since = "6.9.0")
     public StateWrapper(org.bukkit.block.BlockState state) {
         this.state = state;
     }
@@ -166,13 +167,32 @@ public class StateWrapper {
         return str;
     }
 
+    /**
+     * Restore the TileEntity data to the given world at the given coordinates.
+     *
+     * @param worldName World name
+     * @param x         x position
+     * @param y         y position
+     * @param z         z position
+     * @return true if successful
+     */
     public boolean restoreTag(String worldName, int x, int y, int z) {
-        if (this.tag == null) {
+        World world = BukkitUtil.getWorld(worldName);
+        if (world == null) {
             return false;
         }
-        World world = BukkitUtil.getWorld(worldName);
-        Block block = world.getBlockAt(x, y, z);
-        if (block == null) {
+        return restoreTag(world.getBlockAt(x, y, z));
+    }
+
+    /**
+     * Restore the TileEntity data to the given block
+     *
+     * @param block Block to restore to
+     * @return true if successful
+     */
+    @SuppressWarnings("deprecation") // #setLine is needed for Spigot compatibility
+    public boolean restoreTag(@NonNull Block block) {
+        if (this.tag == null) {
             return false;
         }
         org.bukkit.block.BlockState state = block.getState();
@@ -210,10 +230,37 @@ public class StateWrapper {
                 }
                 return false;
             }
+            case "skull" -> {
+                if (state instanceof Skull skull) {
+                    CompoundTag skullOwner = ((CompoundTag) this.tag.getValue().get("SkullOwner"));
+                    if (skullOwner == null) {
+                        return true;
+                    }
+                    String player = skullOwner.getString("Name");
+                    if (player == null || player.isEmpty()) {
+                        return false;
+                    }
+                    try {
+                        skull.setOwningPlayer(Bukkit.getOfflinePlayer(player));
+                        skull.update(true);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    return true;
+                }
+                return false;
+            }
         }
         return false;
     }
 
+    /**
+     * Get a CompoundTag of the contents of a block's inventory (chest, furnace, etc.).
+     *
+     * @deprecated in favour of using WorldEdit methods for obtaining NBT, specifically by obtaining a
+     *         {@link com.sk89q.worldedit.world.block.BaseBlock} and then using {@link com.sk89q.worldedit.world.block.BaseBlock#getNbtData()}
+     */
+    @Deprecated(forRemoval = true, since = "6.9.0")
     public CompoundTag getTag() {
         if (this.tag != null) {
             return this.tag;

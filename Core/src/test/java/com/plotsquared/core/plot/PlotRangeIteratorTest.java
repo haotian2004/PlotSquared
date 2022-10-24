@@ -1,40 +1,29 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.plot;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
 
 public class PlotRangeIteratorTest {
 
@@ -43,10 +32,10 @@ public class PlotRangeIteratorTest {
         // an iterator that should only contain the given plot
         PlotId id = PlotId.of(3, 7);
         PlotId.PlotRangeIterator range = PlotId.PlotRangeIterator.range(id, id);
-        assertTrue(range.hasNext());
-        assertEquals(id, range.next());
-        assertFalse(range.hasNext());
-        assertThrows(NoSuchElementException.class, range::next);
+        Assertions.assertTrue(range.hasNext());
+        Assertions.assertEquals(id, range.next());
+        Assertions.assertFalse(range.hasNext());
+        Assertions.assertThrows(NoSuchElementException.class, range::next);
     }
 
     // the tests below assume a specific order (first increasing y, then increasing x)
@@ -61,11 +50,11 @@ public class PlotRangeIteratorTest {
         List<PlotId> all = Arrays.asList(id00, id01, id10, id11);
         PlotId.PlotRangeIterator range = PlotId.PlotRangeIterator.range(id00, id11);
         for (PlotId id : all) {
-            assertTrue(range.hasNext());
-            assertEquals(id, range.next());
+            Assertions.assertTrue(range.hasNext());
+            Assertions.assertEquals(id, range.next());
         }
-        assertFalse(range.hasNext());
-        assertThrows(NoSuchElementException.class, range::next);
+        Assertions.assertFalse(range.hasNext());
+        Assertions.assertThrows(NoSuchElementException.class, range::next);
     }
 
     @Test
@@ -80,11 +69,11 @@ public class PlotRangeIteratorTest {
         List<PlotId> all = Arrays.asList(id00, id01, id02, id10, id11, id12);
         PlotId.PlotRangeIterator range = PlotId.PlotRangeIterator.range(id00, id12);
         for (PlotId id : all) {
-            assertTrue(range.hasNext());
-            assertEquals(id, range.next());
+            Assertions.assertTrue(range.hasNext());
+            Assertions.assertEquals(id, range.next());
         }
-        assertFalse(range.hasNext());
-        assertThrows(NoSuchElementException.class, range::next);
+        Assertions.assertFalse(range.hasNext());
+        Assertions.assertThrows(NoSuchElementException.class, range::next);
     }
 
     @Test
@@ -99,11 +88,23 @@ public class PlotRangeIteratorTest {
         List<PlotId> all = Arrays.asList(id00, id01, id10, id11, id20, id21);
         PlotId.PlotRangeIterator range = PlotId.PlotRangeIterator.range(id00, id21);
         for (PlotId id : all) {
-            assertTrue(range.hasNext());
-            assertEquals(id, range.next());
+            Assertions.assertTrue(range.hasNext());
+            Assertions.assertEquals(id, range.next());
         }
-        assertFalse(range.hasNext());
-        assertThrows(NoSuchElementException.class, range::next);
+        Assertions.assertFalse(range.hasNext());
+        Assertions.assertThrows(NoSuchElementException.class, range::next);
     }
 
+    @Test
+    public void resetYOfIteratorToStart() {
+        PlotId id00 = PlotId.of(0, 1);
+        PlotId id01 = PlotId.of(1, 2);
+        PlotId.PlotRangeIterator range = PlotId.PlotRangeIterator.range(id00, id01);
+
+        for (int i = 0; i < 4; i++) {
+            Assertions.assertNotEquals(0, range.next().getY());
+        }
+        Assertions.assertFalse(range.hasNext());
+        Assertions.assertThrows(NoSuchElementException.class, range::next);
+    }
 }

@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.command;
 
@@ -29,6 +22,7 @@ import com.google.inject.Inject;
 import com.plotsquared.core.PlotSquared;
 import com.plotsquared.core.configuration.ConfigurationSection;
 import com.plotsquared.core.configuration.ConfigurationUtil;
+import com.plotsquared.core.configuration.Settings;
 import com.plotsquared.core.configuration.caption.CaptionHolder;
 import com.plotsquared.core.configuration.caption.Templates;
 import com.plotsquared.core.configuration.caption.TranslatableCaption;
@@ -74,6 +68,7 @@ import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.regions.Region;
+import com.sk89q.worldedit.world.World;
 import net.kyori.adventure.text.minimessage.Template;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
@@ -190,11 +185,12 @@ public class Area extends SubCommand {
                 final BlockVector3 playerSelectionMin = playerSelectedRegion.getMinimumPoint();
                 final BlockVector3 playerSelectionMax = playerSelectedRegion.getMaximumPoint();
                 // Create a new selection that spans the entire vertical range of the world
+                World world = playerSelectedRegion.getWorld();
                 final CuboidRegion selectedRegion =
                         new CuboidRegion(
                                 playerSelectedRegion.getWorld(),
-                                BlockVector3.at(playerSelectionMin.getX(), 0, playerSelectionMin.getZ()),
-                                BlockVector3.at(playerSelectionMax.getX(), 255, playerSelectionMax.getZ())
+                                BlockVector3.at(playerSelectionMin.getX(), world.getMinY(), playerSelectionMin.getZ()),
+                                BlockVector3.at(playerSelectionMax.getX(), world.getMaxY(), playerSelectionMax.getZ())
                         );
                 // There's only one plot in the area...
                 final PlotId plotId = PlotId.of(1, 1);
@@ -222,7 +218,7 @@ public class Area extends SubCommand {
                 hybridPlotWorld.setAllowSigns(false);
                 final File parentFile = FileUtils.getFile(
                         PlotSquared.platform().getDirectory(),
-                        "schematics" + File.separator + "GEN_ROAD_SCHEMATIC" + File.separator + hybridPlotWorld.getWorldName() + File.separator
+                        Settings.Paths.SCHEMATICS + File.separator + "GEN_ROAD_SCHEMATIC" + File.separator + hybridPlotWorld.getWorldName() + File.separator
                                 + hybridPlotWorld.getId()
                 );
                 if (!parentFile.exists() && !parentFile.mkdirs()) {
@@ -261,8 +257,8 @@ public class Area extends SubCommand {
 
                 // Now the schematic is saved, which is wonderful!
                 PlotAreaBuilder singleBuilder = PlotAreaBuilder.ofPlotArea(hybridPlotWorld).plotManager(PlotSquared
-                        .platform()
-                        .pluginName())
+                                .platform()
+                                .pluginName())
                         .generatorName(PlotSquared.platform().pluginName()).maximumId(plotId).minimumId(plotId);
                 Runnable singleRun = () -> {
                     final String path =
@@ -277,9 +273,9 @@ public class Area extends SubCommand {
                     if (offsetZ != 0) {
                         this.worldConfiguration.set(path + ".road.offset.z", offsetZ);
                     }
-                    final String world = this.setupUtils.setupWorld(singleBuilder);
-                    if (this.worldUtil.isWorld(world)) {
-                        PlotSquared.get().loadWorld(world, null);
+                    final String worldName = this.setupUtils.setupWorld(singleBuilder);
+                    if (this.worldUtil.isWorld(worldName)) {
+                        PlotSquared.get().loadWorld(worldName, null);
                         player.sendMessage(TranslatableCaption.of("single.single_area_created"));
                     } else {
                         player.sendMessage(
@@ -310,9 +306,9 @@ public class Area extends SubCommand {
                         switch (args[1].toLowerCase()) {
                             case "pos1" -> { // Set position 1
                                 HybridPlotWorld area = (HybridPlotWorld) metaData.computeIfAbsent(
-                                        player.getUUID(),
-                                        missingUUID -> new HashMap<>()
-                                )
+                                                player.getUUID(),
+                                                missingUUID -> new HashMap<>()
+                                        )
                                         .get("area_create_area");
                                 if (area == null) {
                                     player.sendMessage(
@@ -340,9 +336,9 @@ public class Area extends SubCommand {
                             case "pos2" -> {  // Set position 2 and finish creation for type=2 (partial)
                                 final HybridPlotWorld area =
                                         (HybridPlotWorld) metaData.computeIfAbsent(
-                                                player.getUUID(),
-                                                missingUUID -> new HashMap<>()
-                                        )
+                                                        player.getUUID(),
+                                                        missingUUID -> new HashMap<>()
+                                                )
                                                 .get("area_create_area");
                                 if (area == null) {
                                     player.sendMessage(
@@ -368,7 +364,8 @@ public class Area extends SubCommand {
                                 int lower = (area.ROAD_WIDTH & 1) == 0 ? area.ROAD_WIDTH / 2 - 1 : area.ROAD_WIDTH / 2;
                                 final int offsetX = bx - (area.ROAD_WIDTH == 0 ? 0 : lower);
                                 final int offsetZ = bz - (area.ROAD_WIDTH == 0 ? 0 : lower);
-                                final CuboidRegion region = RegionUtil.createRegion(bx, tx, bz, tz);
+                                // Height doesn't matter for this region
+                                final CuboidRegion region = RegionUtil.createRegion(bx, tx, 0, 0, bz, tz);
                                 final Set<PlotArea> areas = this.plotAreaManager.getPlotAreasSet(area.getWorldName(), region);
                                 if (!areas.isEmpty()) {
                                     player.sendMessage(
@@ -378,8 +375,8 @@ public class Area extends SubCommand {
                                     return false;
                                 }
                                 PlotAreaBuilder builder = PlotAreaBuilder.ofPlotArea(area).plotManager(PlotSquared
-                                        .platform()
-                                        .pluginName())
+                                                .platform()
+                                                .pluginName())
                                         .generatorName(PlotSquared.platform().pluginName()).minimumId(PlotId.of(1, 1))
                                         .maximumId(PlotId.of(numX, numZ));
                                 final String path =
@@ -395,7 +392,7 @@ public class Area extends SubCommand {
                                     final String world = this.setupUtils.setupWorld(builder);
                                     if (this.worldUtil.isWorld(world)) {
                                         PlotSquared.get().loadWorld(world, null);
-                                        player.teleport(this.worldUtil.getSpawn(world), TeleportCause.COMMAND);
+                                        player.teleport(this.worldUtil.getSpawn(world), TeleportCause.COMMAND_AREA_CREATE);
                                         player.sendMessage(TranslatableCaption.of("setup.setup_finished"));
                                         if (area.getTerrain() != PlotAreaTerrainType.ALL) {
                                             QueueCoordinator queue = blockQueue.getNewQueue(worldUtil.getWeWorld(world));
@@ -525,7 +522,7 @@ public class Area extends SubCommand {
                                 builder.generatorName(PlotSquared.platform().pluginName());
                                 String world = this.setupUtils.setupWorld(builder);
                                 if (this.worldUtil.isWorld(world)) {
-                                    player.teleport(this.worldUtil.getSpawn(world), TeleportCause.COMMAND);
+                                    player.teleport(this.worldUtil.getSpawn(world), TeleportCause.COMMAND_AREA_CREATE);
                                     player.sendMessage(TranslatableCaption.of("setup.setup_finished"));
                                 } else {
                                     player.sendMessage(
@@ -560,13 +557,13 @@ public class Area extends SubCommand {
                         }
                         if (this.worldUtil.isWorld(pa.getWorldName())) {
                             if (!player.getLocation().getWorldName().equals(pa.getWorldName())) {
-                                player.teleport(this.worldUtil.getSpawn(pa.getWorldName()), TeleportCause.COMMAND);
+                                player.teleport(this.worldUtil.getSpawn(pa.getWorldName()), TeleportCause.COMMAND_AREA_CREATE);
                             }
                         } else {
                             builder.terrainType(PlotAreaTerrainType.NONE);
                             builder.plotAreaType(PlotAreaType.NORMAL);
                             this.setupUtils.setupWorld(builder);
-                            player.teleport(this.worldUtil.getSpawn(pa.getWorldName()), TeleportCause.COMMAND);
+                            player.teleport(this.worldUtil.getSpawn(pa.getWorldName()), TeleportCause.COMMAND_AREA_CREATE);
                         }
                         metaData.computeIfAbsent(player.getUUID(), missingUUID -> new HashMap<>()).put("area_create_area", pa);
                         player.sendMessage(
@@ -718,8 +715,8 @@ public class Area extends SubCommand {
                                         generatorTemplate
                                 ));
                         Template tooltipTemplate = Template.of("hover_info", tooltip);
-                        Template visitcmdTemplate = Template.of("command_tp", "/plot area tp " + area.toString());
-                        Template infocmdTemplate = Template.of("command_info", "/plot area info " + area.toString());
+                        Template visitcmdTemplate = Template.of("command_tp", "/plot area tp " + area);
+                        Template infocmdTemplate = Template.of("command_info", "/plot area info " + area);
                         Template numberTemplate = Template.of("number", String.valueOf(i));
                         Template nameTemplate = Template.of("area_name", name);
                         Template typeTemplate = Template.of("area_type", area.getType().name());
@@ -795,10 +792,10 @@ public class Area extends SubCommand {
                 if (area instanceof SinglePlotArea) {
                     ((SinglePlotArea) area).loadWorld(PlotId.of(0, 0));
                     center = this.worldUtil.getSpawn(PlotId.of(0, 0).toUnderscoreSeparatedString());
-                    player.teleport(center, TeleportCause.COMMAND);
+                    player.teleport(center, TeleportCause.COMMAND_AREA_TELEPORT);
                 } else if (area.getType() != PlotAreaType.PARTIAL) {
                     center = this.worldUtil.getSpawn(area.getWorldName());
-                    player.teleport(center, TeleportCause.COMMAND);
+                    player.teleport(center, TeleportCause.COMMAND_AREA_TELEPORT);
                 } else {
                     CuboidRegion region = area.getRegion();
                     center = Location.at(area.getWorldName(),
@@ -810,7 +807,7 @@ public class Area extends SubCommand {
                                     .getZ()) / 2
                     );
                     this.worldUtil.getHighestBlock(area.getWorldName(), center.getX(), center.getZ(),
-                            y -> player.teleport(center.withY(1 + y), TeleportCause.COMMAND)
+                            y -> player.teleport(center.withY(1 + y), TeleportCause.COMMAND_AREA_TELEPORT)
                     );
                 }
                 return true;
@@ -844,8 +841,8 @@ public class Area extends SubCommand {
                 completions.add("tp");
             }
             final List<Command> commands = completions.stream().filter(completion -> completion
-                    .toLowerCase()
-                    .startsWith(args[0].toLowerCase()))
+                            .toLowerCase()
+                            .startsWith(args[0].toLowerCase()))
                     .map(completion -> new Command(
                             null,
                             true,
@@ -856,11 +853,11 @@ public class Area extends SubCommand {
                     ) {
                     }).collect(Collectors.toCollection(LinkedList::new));
             if (Permissions.hasPermission(player, Permission.PERMISSION_AREA) && args[0].length() > 0) {
-                commands.addAll(TabCompletions.completePlayers(args[0], Collections.emptyList()));
+                commands.addAll(TabCompletions.completePlayers(player, args[0], Collections.emptyList()));
             }
             return commands;
         }
-        return TabCompletions.completePlayers(String.join(",", args).trim(), Collections.emptyList());
+        return TabCompletions.completePlayers(player, String.join(",", args).trim(), Collections.emptyList());
     }
 
 }

@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.bukkit.util;
 
@@ -40,7 +33,6 @@ import com.plotsquared.core.queue.QueueCoordinator;
 import com.plotsquared.core.queue.ScopedQueueCoordinator;
 import com.plotsquared.core.util.ChunkManager;
 import com.plotsquared.core.util.RegionManager;
-import com.plotsquared.core.util.RegionUtil;
 import com.plotsquared.core.util.WorldUtil;
 import com.plotsquared.core.util.entity.EntityCategories;
 import com.plotsquared.core.util.task.RunnableVal;
@@ -176,7 +168,7 @@ public class BukkitRegionManager extends RegionManager {
             final boolean ignoreAugment,
             final @Nullable Runnable whenDone
     ) {
-        final BukkitWorld world = new BukkitWorld((World) pos1.getWorld());
+        final BukkitWorld world = (BukkitWorld) worldUtil.getWeWorld(pos1.getWorldName());
 
         final int p1x = pos1.getX();
         final int p1z = pos1.getZ();
@@ -261,7 +253,7 @@ public class BukkitRegionManager extends RegionManager {
             if (checkX2 && checkZ2) {
                 map.saveRegion(world, xxt2, xxt, zzt2, zzt); //
             }
-            CuboidRegion currentPlotClear = RegionUtil.createRegion(pos1.getX(), pos2.getX(), pos1.getZ(), pos2.getZ());
+            CuboidRegion currentPlotClear = new CuboidRegion(pos1.getBlockVector3(), pos2.getBlockVector3());
             map.saveEntitiesOut(Bukkit.getWorld(world.getName()).getChunkAt(x, z), currentPlotClear);
             AugmentedUtils.bypass(
                     ignoreAugment,
@@ -276,18 +268,14 @@ public class BukkitRegionManager extends RegionManager {
                                     PlotLoc plotLoc = new PlotLoc(bx + x1, bz + z1);
                                     BaseBlock[] ids = map.allBlocks.get(plotLoc);
                                     if (ids != null) {
-                                        for (int y = 0; y < Math.min(128, ids.length); y++) {
-                                            BaseBlock id = ids[y];
+                                        int minY = value.getMin().getY();
+                                        for (int yIndex = 0; yIndex < ids.length; yIndex++) {
+                                            int y = yIndex + minY;
+                                            BaseBlock id = ids[yIndex];
                                             if (id != null) {
                                                 value.setBlock(x1, y, z1, id);
                                             } else {
                                                 value.setBlock(x1, y, z1, BlockTypes.AIR.getDefaultState());
-                                            }
-                                        }
-                                        for (int y = Math.min(128, ids.length); y < ids.length; y++) {
-                                            BaseBlock id = ids[y];
-                                            if (id != null) {
-                                                value.setBlock(x1, y, z1, id);
                                             }
                                         }
                                     }
@@ -297,7 +285,7 @@ public class BukkitRegionManager extends RegionManager {
                     }, world.getName(), chunk)
             );
             //map.restoreBlocks(worldObj, 0, 0);
-            map.restoreEntities(Bukkit.getWorld(world.getName()), 0, 0);
+            map.restoreEntities(Bukkit.getWorld(world.getName()));
         });
         regenQueue.setCompleteTask(whenDone);
         queue.setCompleteTask(regenQueue::enqueue);

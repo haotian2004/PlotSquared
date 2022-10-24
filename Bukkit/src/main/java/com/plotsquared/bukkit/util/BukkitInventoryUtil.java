@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.bukkit.util;
 
@@ -42,6 +35,7 @@ import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,11 +44,15 @@ import java.util.stream.IntStream;
 @Singleton
 public class BukkitInventoryUtil extends InventoryUtil {
 
-    private static ItemStack getItem(PlotItemStack item) {
+    private static @Nullable ItemStack getItem(PlotItemStack item) {
         if (item == null) {
             return null;
         }
-        ItemStack stack = new ItemStack(BukkitAdapter.adapt(item.getType()), item.getAmount());
+        Material material = BukkitAdapter.adapt(item.getType());
+        if (material == null) {
+            return null;
+        }
+        ItemStack stack = new ItemStack(material, item.getAmount());
         ItemMeta meta = null;
         if (item.getName() != null) {
             meta = stack.getItemMeta();
@@ -77,6 +75,7 @@ public class BukkitInventoryUtil extends InventoryUtil {
         return stack;
     }
 
+    @SuppressWarnings("deprecation") // Paper deprecation
     @Override
     public void open(PlotInventory inv) {
         BukkitPlayer bp = (BukkitPlayer) inv.getPlayer();
@@ -103,16 +102,22 @@ public class BukkitInventoryUtil extends InventoryUtil {
     }
 
     @Override
-    public void setItem(PlotInventory inv, int index, PlotItemStack item) {
+    public boolean setItemChecked(PlotInventory inv, int index, PlotItemStack item) {
         BukkitPlayer bp = (BukkitPlayer) inv.getPlayer();
         InventoryView opened = bp.player.getOpenInventory();
-        if (!inv.isOpen()) {
-            return;
+        ItemStack stack = getItem(item);
+        if (stack == null) {
+            return false;
         }
-        opened.setItem(index, getItem(item));
+        if (!inv.isOpen()) {
+            return true;
+        }
+        opened.setItem(index, stack);
         bp.player.updateInventory();
+        return true;
     }
 
+    @SuppressWarnings("deprecation") // Paper deprecation
     public PlotItemStack getItem(ItemStack item) {
         if (item == null) {
             return null;
@@ -145,6 +150,7 @@ public class BukkitInventoryUtil extends InventoryUtil {
                 .toArray(PlotItemStack[]::new);
     }
 
+    @SuppressWarnings("deprecation") // #getTitle is needed for Spigot compatibility
     @Override
     public boolean isOpen(PlotInventory plotInventory) {
         if (!plotInventory.isOpen()) {

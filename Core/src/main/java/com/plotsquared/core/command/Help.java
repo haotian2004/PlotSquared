@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.command;
 
@@ -37,11 +30,11 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.minimessage.Template;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @CommandDeclaration(command = "help",
         aliases = "?",
@@ -119,15 +112,20 @@ public class Help extends Command {
                 TextComponent.Builder builder = Component.text();
                 builder.append(MINI_MESSAGE.parse(TranslatableCaption.of("help.help_header").getComponent(player)));
                 for (CommandCategory c : CommandCategory.values()) {
+                    if (!c.canAccess(player)) {
+                        continue;
+                    }
                     builder.append(Component.newline()).append(MINI_MESSAGE
-                            .parse(TranslatableCaption.of("help.help_info_item").getComponent(player),
+                            .parse(
+                                    TranslatableCaption.of("help.help_info_item").getComponent(player),
                                     Template.of("command", "/plot help"),
                                     Template.of("category", c.name().toLowerCase()),
                                     Template.of("category_desc", c.getComponent(player))
                             ));
                 }
                 builder.append(Component.newline()).append(MINI_MESSAGE
-                        .parse(TranslatableCaption.of("help.help_info_item").getComponent(player),
+                        .parse(
+                                TranslatableCaption.of("help.help_info_item").getComponent(player),
                                 Template.of("command", "/plot help"),
                                 Template.of("category", "all"),
                                 Template.of("category_desc", "Display all commands")
@@ -139,10 +137,10 @@ public class Help extends Command {
                 return true;
             }
             new HelpMenu(player).setCategory(catEnum).getCommands().generateMaxPages().generatePage(
-                    page - 1,
-                    getParent().toString(),
-                    player
-            )
+                            page - 1,
+                            getParent().toString(),
+                            player
+                    )
                     .render();
             return true;
         });
@@ -150,11 +148,26 @@ public class Help extends Command {
 
     @Override
     public Collection<Command> tab(PlotPlayer<?> player, String[] args, boolean space) {
-        return Stream.of("claiming", "teleport", "settings", "chat", "schematic", "appearance", "info", "debug",
-                "administration", "all")
-                .filter(value -> value.startsWith(args[0].toLowerCase(Locale.ENGLISH)))
-                .map(value -> new Command(null, false, value, "", RequiredType.NONE, null) {
-                }).collect(Collectors.toList());
+        final String argument = args[0].toLowerCase(Locale.ENGLISH);
+        List<Command> result = new ArrayList<>();
+
+        for (final CommandCategory category : CommandCategory.values()) {
+            if (!category.canAccess(player)) {
+                continue;
+            }
+            String name = category.name().toLowerCase();
+            if (!name.startsWith(argument)) {
+                continue;
+            }
+            result.add(new Command(null, false, name, "", RequiredType.NONE, null) {
+            });
+        }
+        // add the category "all"
+        if ("all".startsWith(argument)) {
+            result.add(new Command(null, false, "all", "", RequiredType.NONE, null) {
+            });
+        }
+        return result;
     }
 
 }

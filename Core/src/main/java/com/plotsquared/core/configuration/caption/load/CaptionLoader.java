@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.configuration.caption.load;
 
@@ -181,7 +174,7 @@ public final class CaptionLoader {
     public @NonNull CaptionMap loadAll(final @NonNull Path directory) throws IOException {
         final Map<Locale, CaptionMap> localeMaps = new HashMap<>();
         try (final Stream<Path> files = Files.list(directory)) {
-            final List<Path> captionFiles = files.filter(Files::isRegularFile).collect(Collectors.toList());
+            final List<Path> captionFiles = files.filter(Files::isRegularFile).toList();
             for (Path file : captionFiles) {
                 try {
                     final CaptionMap localeMap = loadSingle(file);
@@ -197,13 +190,14 @@ public final class CaptionLoader {
 
     /**
      * Load a message file into a new CaptionMap. The file name must match
-     * the pattern {@code messages_<locale>.json} where {@code <locale>}
-     * is a valid {@link Locale} string.
+     * the pattern expected by the {@link #localeExtractor}.
+     * Note that this method does not attempt to create a new file.
      *
      * @param file The file to load
      * @return A new CaptionMap containing the loaded messages
      * @throws IOException              if the file couldn't be accessed or read successfully.
      * @throws IllegalArgumentException if the file name doesn't match the specified format.
+     * @see #loadOrCreateSingle(Path)
      */
     public @NonNull CaptionMap loadSingle(final @NonNull Path file) throws IOException {
         final Locale locale = this.localeExtractor.apply(file);
@@ -212,12 +206,41 @@ public final class CaptionLoader {
             if (patch(map, locale)) {
                 save(file, map); // update the file using the modified map
             }
-            return new LocalizedCaptionMap(locale, map.entrySet().stream()
-                    .collect(Collectors.toMap(
-                            entry -> TranslatableCaption.of(this.namespace, entry.getKey()),
-                            Map.Entry::getValue)
-                    ));
+            return new LocalizedCaptionMap(locale, mapToCaptions(map));
         }
+    }
+
+    /**
+     * Load a message file into a new CaptionMap. The file name must match
+     * the pattern expected by the {@link #localeExtractor}.
+     * If no file exists at the given path, this method will
+     * attempt to create one and fill it with default values.
+     *
+     * @param file The file to load
+     * @return A new CaptionMap containing the loaded messages
+     * @throws IOException              if the file couldn't be accessed or read successfully.
+     * @throws IllegalArgumentException if the file name doesn't match the specified format.
+     * @see #loadSingle(Path)
+     * @since 6.9.3
+     */
+    public @NonNull CaptionMap loadOrCreateSingle(final @NonNull Path file) throws IOException {
+        final Locale locale = this.localeExtractor.apply(file);
+        if (!Files.exists(file) ) {
+            Map<String, String> map = new LinkedHashMap<>();
+            patch(map, locale);
+            save(file, map);
+            return new LocalizedCaptionMap(locale, mapToCaptions(map));
+        } else {
+            return loadSingle(file);
+        }
+    }
+
+    private @NonNull Map<TranslatableCaption, String> mapToCaptions(Map<String, String> map) {
+        return map.entrySet().stream().collect(
+                Collectors.toMap(
+                        entry -> TranslatableCaption.of(this.namespace, entry.getKey()),
+                        Map.Entry::getValue
+                ));
     }
 
     /**

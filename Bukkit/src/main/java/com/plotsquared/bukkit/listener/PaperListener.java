@@ -1,30 +1,24 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.bukkit.listener;
 
+import com.destroystokyo.paper.event.block.BeaconEffectEvent;
 import com.destroystokyo.paper.event.entity.EntityPathfindEvent;
 import com.destroystokyo.paper.event.entity.PlayerNaturallySpawnCreaturesEvent;
 import com.destroystokyo.paper.event.entity.PreCreatureSpawnEvent;
@@ -39,11 +33,17 @@ import com.plotsquared.core.command.MainCommand;
 import com.plotsquared.core.configuration.Settings;
 import com.plotsquared.core.configuration.caption.TranslatableCaption;
 import com.plotsquared.core.location.Location;
+import com.plotsquared.core.permissions.Permission;
 import com.plotsquared.core.player.PlotPlayer;
 import com.plotsquared.core.plot.Plot;
 import com.plotsquared.core.plot.PlotArea;
+import com.plotsquared.core.plot.flag.FlagContainer;
+import com.plotsquared.core.plot.flag.implementations.BeaconEffectsFlag;
 import com.plotsquared.core.plot.flag.implementations.DoneFlag;
+import com.plotsquared.core.plot.flag.implementations.ProjectilesFlag;
+import com.plotsquared.core.plot.flag.types.BooleanFlag;
 import com.plotsquared.core.plot.world.PlotAreaManager;
+import com.plotsquared.core.util.Permissions;
 import net.kyori.adventure.text.minimessage.Template;
 import org.bukkit.Chunk;
 import org.bukkit.block.Block;
@@ -53,7 +53,6 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Slime;
-import org.bukkit.entity.ThrownPotion;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -193,8 +192,8 @@ public class PaperListener implements Listener {
             case "PATROL":
             case "RAID":
             case "SHEARED":
-            case "SHOULDER_ENTITY":
             case "SILVERFISH_BLOCK":
+            case "ENDER_PEARL":
             case "TRAP":
             case "VILLAGE_DEFENSE":
             case "VILLAGE_INVASION":
@@ -234,16 +233,16 @@ public class PaperListener implements Listener {
         Plot plot = location.getOwnedPlotAbs();
         if (plot == null) {
             EntityType type = event.getType();
+            // PreCreatureSpawnEvent **should** not be called for DROPPED_ITEM, just for the sake of consistency
+            if (type == EntityType.DROPPED_ITEM) {
+                if (Settings.Enabled_Components.KILL_ROAD_ITEMS) {
+                    event.setCancelled(true);
+                }
+                return;
+            }
             if (!area.isMobSpawning()) {
-                switch (type) {
-                    case DROPPED_ITEM:
-                        if (Settings.Enabled_Components.KILL_ROAD_ITEMS) {
-                            event.setShouldAbortSpawn(true);
-                            event.setCancelled(true);
-                            return;
-                        }
-                    case PLAYER:
-                        return;
+                if (type == EntityType.PLAYER) {
+                    return;
                 }
                 if (type.isAlive()) {
                     event.setShouldAbortSpawn(true);
@@ -322,9 +321,6 @@ public class PaperListener implements Listener {
             return;
         }
         Projectile entity = event.getProjectile();
-        if (!(entity instanceof ThrownPotion)) {
-            return;
-        }
         ProjectileSource shooter = entity.getShooter();
         if (!(shooter instanceof Player)) {
             return;
@@ -333,11 +329,38 @@ public class PaperListener implements Listener {
         if (!this.plotAreaManager.hasPlotArea(location.getWorldName())) {
             return;
         }
-        PlotPlayer<?> pp = BukkitUtil.adapt((Player) shooter);
+        PlotPlayer<Player> pp = BukkitUtil.adapt((Player) shooter);
         Plot plot = location.getOwnedPlot();
-        if (plot != null && !plot.isAdded(pp.getUUID())) {
-            entity.remove();
-            event.setCancelled(true);
+
+        if (plot == null) {
+            if (!Permissions.hasPermission(pp, Permission.PERMISSION_ADMIN_PROJECTILE_ROAD)) {
+                pp.sendMessage(
+                        TranslatableCaption.of("permission.no_permission_event"),
+                        Template.of("node", String.valueOf(Permission.PERMISSION_ADMIN_PROJECTILE_ROAD))
+                );
+                entity.remove();
+                event.setCancelled(true);
+            }
+        } else if (!plot.hasOwner()) {
+            if (!Permissions.hasPermission(pp, Permission.PERMISSION_ADMIN_PROJECTILE_UNOWNED)) {
+                pp.sendMessage(
+                        TranslatableCaption.of("permission.no_permission_event"),
+                        Template.of("node", String.valueOf(Permission.PERMISSION_ADMIN_PROJECTILE_UNOWNED))
+                );
+                entity.remove();
+                event.setCancelled(true);
+            }
+        } else if (!plot.isAdded(pp.getUUID())) {
+            if (!plot.getFlag(ProjectilesFlag.class)) {
+                if (!Permissions.hasPermission(pp, Permission.PERMISSION_ADMIN_PROJECTILE_OTHER)) {
+                    pp.sendMessage(
+                            TranslatableCaption.of("permission.no_permission_event"),
+                            Template.of("node", String.valueOf(Permission.PERMISSION_ADMIN_PROJECTILE_OTHER))
+                    );
+                    entity.remove();
+                    event.setCancelled(true);
+                }
+            }
         }
     }
 
@@ -379,6 +402,52 @@ public class PaperListener implements Listener {
             event.setHandled(true);
         } catch (final Exception ignored) {
         }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onBeaconEffect(final BeaconEffectEvent event) {
+        Block block = event.getBlock();
+        Location beaconLocation = BukkitUtil.adapt(block.getLocation());
+        Plot beaconPlot = beaconLocation.getPlot();
+
+        PlotArea area = beaconLocation.getPlotArea();
+        if (area == null) {
+            return;
+        }
+
+        Player player = event.getPlayer();
+        Location playerLocation = BukkitUtil.adapt(player.getLocation());
+
+        PlotPlayer<Player> plotPlayer = BukkitUtil.adapt(player);
+        Plot playerStandingPlot = playerLocation.getPlot();
+        if (playerStandingPlot == null) {
+            FlagContainer container = area.getRoadFlagContainer();
+            if (!getBooleanFlagValue(container, BeaconEffectsFlag.class, true) ||
+                    (beaconPlot != null && Settings.Enabled_Components.DISABLE_BEACON_EFFECT_OVERFLOW)) {
+                event.setCancelled(true);
+            }
+            return;
+        }
+
+        FlagContainer container = playerStandingPlot.getFlagContainer();
+        boolean plotBeaconEffects = getBooleanFlagValue(container, BeaconEffectsFlag.class, true);
+        if (playerStandingPlot.equals(beaconPlot)) {
+            if (!plotBeaconEffects) {
+                event.setCancelled(true);
+            }
+            return;
+        }
+
+        if (!plotBeaconEffects || Settings.Enabled_Components.DISABLE_BEACON_EFFECT_OVERFLOW) {
+            event.setCancelled(true);
+        }
+    }
+
+    private boolean getBooleanFlagValue(@NonNull FlagContainer container,
+                                        @NonNull Class<? extends BooleanFlag<?>> flagClass,
+                                        boolean defaultValue) {
+        BooleanFlag<?> flag = container.getFlag(flagClass);
+        return flag == null ? defaultValue : flag.getValue();
     }
 
 }

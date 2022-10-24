@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.queue;
 
@@ -42,6 +35,7 @@ public class LocalChunk {
     private final QueueCoordinator parent;
     private final int x;
     private final int z;
+    private final int minSection;
 
     private final BaseBlock[][] baseblocks;
     private final BiomeType[][] biomes;
@@ -52,8 +46,10 @@ public class LocalChunk {
         this.parent = parent;
         this.x = x;
         this.z = z;
-        baseblocks = new BaseBlock[16][];
-        biomes = new BiomeType[16][];
+        this.minSection = parent.getMinLayer();
+        int sections = parent.getMaxLayer() - parent.getMinLayer() + 1;
+        baseblocks = new BaseBlock[sections][];
+        biomes = new BiomeType[sections][];
     }
 
     public @NonNull QueueCoordinator getParent() {
@@ -66,6 +62,15 @@ public class LocalChunk {
 
     public int getZ() {
         return this.z;
+    }
+
+    /**
+     * Get the minimum layer position stored (usually -4 or 0).
+     *
+     * @since 6.6.0
+     */
+    public int getMinSection() {
+        return this.minSection;
     }
 
     public @NonNull BaseBlock[][] getBaseblocks() {
@@ -81,7 +86,7 @@ public class LocalChunk {
     }
 
     public void setBiome(final int x, final int y, final int z, final @NonNull BiomeType biomeType) {
-        final int i = y >> 4;
+        final int i = getLayerIndex(y);
         final int j = ChunkUtil.getJ(x, y, z);
         BiomeType[] array = this.biomes[i];
         if (array == null) {
@@ -96,7 +101,7 @@ public class LocalChunk {
     }
 
     public void setBlock(final int x, final int y, final int z, final @NonNull BaseBlock baseBlock) {
-        final int i = y >> 4;
+        final int i = getLayerIndex(y);
         final int j = ChunkUtil.getJ(x, y, z);
         BaseBlock[] array = baseblocks[i];
         if (array == null) {
@@ -115,6 +120,10 @@ public class LocalChunk {
 
     public @NonNull HashMap<Location, BaseEntity> getEntities() {
         return this.entities;
+    }
+
+    private int getLayerIndex(final int y) {
+        return (y >> 4) - minSection;
     }
 
 }

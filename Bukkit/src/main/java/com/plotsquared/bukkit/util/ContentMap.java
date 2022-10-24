@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.bukkit.util;
 
@@ -33,12 +26,12 @@ import com.sk89q.worldedit.bukkit.BukkitWorld;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.world.block.BaseBlock;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bukkit.Chunk;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -70,7 +63,7 @@ public class ContentMap {
         }
         for (int x = x1; x <= x2; x++) {
             for (int z = z1; z <= z2; z++) {
-                saveBlocks(world, 256, x, z, 0, 0);
+                saveBlocks(world, x, z);
             }
         }
     }
@@ -92,14 +85,7 @@ public class ContentMap {
         }
     }
 
-    void saveEntitiesIn(Chunk chunk, CuboidRegion region) {
-        saveEntitiesIn(chunk, region, 0, 0, false);
-    }
-
-    void saveEntitiesIn(
-            Chunk chunk, CuboidRegion region, int offsetX, int offsetZ,
-            boolean delete
-    ) {
+    void saveEntitiesIn(Chunk chunk, CuboidRegion region, boolean delete) {
         for (Entity entity : chunk.getEntities()) {
             Location location = BukkitUtil.adapt(entity.getLocation());
             int x = location.getX();
@@ -111,8 +97,6 @@ public class ContentMap {
                 continue;
             }
             EntityWrapper wrap = new ReplicatingEntityWrapper(entity, (short) 2);
-            wrap.x += offsetX;
-            wrap.z += offsetZ;
             wrap.saveEntity();
             this.entities.add(wrap);
             if (delete) {
@@ -123,10 +107,10 @@ public class ContentMap {
         }
     }
 
-    void restoreEntities(World world, int xOffset, int zOffset) {
+    void restoreEntities(World world) {
         for (EntityWrapper entity : this.entities) {
             try {
-                entity.spawn(world, xOffset, zOffset);
+                entity.spawn(world, 0, 0);
             } catch (Exception e) {
                 LOGGER.error("Failed to restore entity", e);
             }
@@ -134,15 +118,13 @@ public class ContentMap {
         this.entities.clear();
     }
 
-    //todo optimize maxY
-    void saveBlocks(BukkitWorld world, int maxY, int x, int z, int offsetX, int offsetZ) {
-        maxY = Math.min(255, maxY);
-        BaseBlock[] ids = new BaseBlock[maxY + 1];
-        for (short y = 0; y <= maxY; y++) {
-            BaseBlock block = world.getFullBlock(BlockVector3.at(x, y, z));
-            ids[y] = block;
+    private void saveBlocks(BukkitWorld world, int x, int z) {
+        BaseBlock[] ids = new BaseBlock[world.getMaxY() - world.getMinY() + 1];
+        for (short yIndex = 0; yIndex <= world.getMaxY() - world.getMinY(); yIndex++) {
+            BaseBlock block = world.getFullBlock(BlockVector3.at(x, yIndex + world.getMinY(), z));
+            ids[yIndex] = block;
         }
-        PlotLoc loc = new PlotLoc(x + offsetX, z + offsetZ);
+        PlotLoc loc = new PlotLoc(x, z);
         this.allBlocks.put(loc, ids);
     }
 

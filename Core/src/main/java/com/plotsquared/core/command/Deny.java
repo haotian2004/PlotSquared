@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.command;
 
@@ -30,6 +23,7 @@ import com.plotsquared.core.PlotSquared;
 import com.plotsquared.core.configuration.Settings;
 import com.plotsquared.core.configuration.caption.TranslatableCaption;
 import com.plotsquared.core.database.DBFunc;
+import com.plotsquared.core.events.TeleportCause;
 import com.plotsquared.core.location.Location;
 import com.plotsquared.core.permissions.Permission;
 import com.plotsquared.core.player.PlotPlayer;
@@ -51,7 +45,7 @@ import java.util.concurrent.TimeoutException;
 
 @CommandDeclaration(command = "deny",
         aliases = {"d", "ban"},
-        usage = "/plot deny <player | *>",
+        usage = "/plot deny <player>",
         category = CommandCategory.SETTINGS,
         requiredType = RequiredType.PLAYER)
 public class Deny extends SubCommand {
@@ -76,9 +70,7 @@ public class Deny extends SubCommand {
     public boolean onCommand(PlotPlayer<?> player, String[] args) {
 
         Location location = player.getLocation();
-        Plot plot = location.getPlotAbs();
-        final Plot currentPlot = player.getCurrentPlot();
-        int size = currentPlot.getDenied().size();
+        final Plot plot = location.getPlotAbs();
         if (plot == null) {
             player.sendMessage(TranslatableCaption.of("errors.not_in_plot"));
             return false;
@@ -94,7 +86,8 @@ public class Deny extends SubCommand {
         }
 
         int maxDenySize = Permissions.hasPermissionRange(player, Permission.PERMISSION_DENY, Settings.Limit.MAX_PLOTS);
-        if (size > (maxDenySize - 1)) {
+        int size = plot.getDenied().size();
+        if (size >= maxDenySize) {
             player.sendMessage(
                     TranslatableCaption.of("members.plot_max_members_denied"),
                     Template.of("amount", String.valueOf(size))
@@ -125,7 +118,7 @@ public class Deny extends SubCommand {
                     } else if (plot.getDenied().contains(uuid)) {
                         player.sendMessage(
                                 TranslatableCaption.of("member.already_added"),
-                                Template.of("player", PlayerManager.getName(uuid))
+                                Template.of("player", PlayerManager.resolveName(uuid).getComponent(player))
                         );
                         return;
                     } else {
@@ -157,10 +150,11 @@ public class Deny extends SubCommand {
 
     @Override
     public Collection<Command> tab(final PlotPlayer<?> player, final String[] args, final boolean space) {
-        return TabCompletions.completePlayers(String.join(",", args).trim(), Collections.emptyList());
+        return TabCompletions.completePlayers(player, String.join(",", args).trim(), Collections.emptyList());
     }
 
     private void handleKick(PlotPlayer<?> player, Plot plot) {
+        plot = plot.getBasePlot(false);
         if (player == null) {
             return;
         }
@@ -184,10 +178,10 @@ public class Deny extends SubCommand {
                 player.kick("You got kicked from the plot! This server did not set up a loaded spawn, so you got " +
                         "kicked from the server.");
             } else {
-                player.teleport(newSpawn);
+                player.teleport(newSpawn, TeleportCause.DENIED);
             }
         } else {
-            player.teleport(spawn);
+            player.teleport(spawn, TeleportCause.DENIED);
         }
     }
 

@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.bukkit;
 
@@ -48,6 +41,7 @@ import com.plotsquared.bukkit.listener.PlayerEventListener;
 import com.plotsquared.bukkit.listener.ProjectileEventListener;
 import com.plotsquared.bukkit.listener.ServerListener;
 import com.plotsquared.bukkit.listener.SingleWorldListener;
+import com.plotsquared.bukkit.listener.SpigotListener;
 import com.plotsquared.bukkit.listener.WorldEvents;
 import com.plotsquared.bukkit.placeholder.PAPIPlaceholders;
 import com.plotsquared.bukkit.placeholder.PlaceholderFormatter;
@@ -120,6 +114,8 @@ import io.papermc.lib.PaperLib;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bstats.bukkit.Metrics;
 import org.bstats.charts.DrilldownPie;
 import org.bstats.charts.SimplePie;
@@ -140,13 +136,13 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.incendo.serverlib.ServerLib;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -216,6 +212,7 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
     private PlatformWorldManager<World> worldManager;
     private Locale serverLocale;
 
+    @SuppressWarnings("StringSplitter")
     @Override
     public int @NonNull [] serverVersion() {
         if (this.version == null) {
@@ -233,6 +230,16 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
             }
         }
         return this.version;
+    }
+
+    @Override
+    public int versionMinHeight() {
+        return serverVersion()[1] >= 18 ? -64 : 0;
+    }
+
+    @Override
+    public int versionMaxHeight() {
+        return serverVersion()[1] >= 18 ? 319 : 255;
     }
 
     @Override
@@ -257,7 +264,7 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
 
         final PlotSquared plotSquared = new PlotSquared(this, "Bukkit");
 
-        // FAWE
+        // FastAsyncWorldEdit
         if (Settings.FAWE_Components.FAWE_HOOK) {
             Plugin fawe = getServer().getPluginManager().getPlugin("FastAsyncWorldEdit");
             if (fawe != null) {
@@ -265,8 +272,8 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
                     Class.forName("com.fastasyncworldedit.bukkit.regions.plotsquared.FaweQueueCoordinator");
                     faweHook = true;
                 } catch (Exception ignored) {
-                    LOGGER.error("Incompatible version of FAWE to enable hook, please upgrade: https://ci.athion" +
-                            ".net/job/FastAsyncWorldEdit-1.17/");
+                    LOGGER.error("Incompatible version of FastAsyncWorldEdit to enable hook, please upgrade: https://ci.athion" +
+                            ".net/job/FastAsyncWorldEdit/");
                 }
             }
         }
@@ -274,7 +281,8 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
         // We create the injector after PlotSquared has been initialized, so that we have access
         // to generated instances and settings
         this.injector = Guice
-                .createInjector(Stage.PRODUCTION,
+                .createInjector(
+                        Stage.PRODUCTION,
                         new PermissionModule(),
                         new WorldManagerModule(),
                         new PlotSquaredModule(),
@@ -320,8 +328,6 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
         // Comments
         CommentManager.registerDefaultInboxes();
 
-        plotSquared.startExpiryTasks();
-
         // Do stuff that was previously done in PlotSquared
         // Kill entities
         if (Settings.Enabled_Components.KILL_ROAD_MOBS || Settings.Enabled_Components.KILL_ROAD_VEHICLES) {
@@ -355,6 +361,8 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
                 } else {
                     getServer().getPluginManager().registerEvents(injector().getInstance(PaperListener.class), this);
                 }
+            } else {
+                getServer().getPluginManager().registerEvents(injector().getInstance(SpigotListener.class), this);
             }
             this.plotListener.startRunnable();
         }
@@ -417,6 +425,11 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
                 }
             }, TaskTime.ticks(1L));
         }
+
+        plotSquared.startExpiryTasks();
+
+        // Once the server has loaded force updating all generators known to PlotSquared
+        TaskManager.runTaskLater(() -> PlotSquared.platform().setupUtils().updateGenerators(true), TaskTime.ticks(1L));
 
         // Services are accessed in order
         final CacheUUIDService cacheUUIDService = new CacheUUIDService(Settings.UUID.UUID_CACHE_SIZE);
@@ -496,8 +509,10 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
                 this.backgroundPipeline.registerService(essentialsUUIDService);
             }
 
-            final SquirrelIdUUIDService impromptuMojangService = new SquirrelIdUUIDService(Settings.UUID.IMPROMPTU_LIMIT);
-            this.impromptuPipeline.registerService(impromptuMojangService);
+            if (Settings.UUID.IMPROMPTU_SERVICE_MOJANG_API) {
+                final SquirrelIdUUIDService impromptuMojangService = new SquirrelIdUUIDService(Settings.UUID.IMPROMPTU_LIMIT);
+                this.impromptuPipeline.registerService(impromptuMojangService);
+            }
             final SquirrelIdUUIDService backgroundMojangService = new SquirrelIdUUIDService(Settings.UUID.BACKGROUND_LIMIT);
             this.backgroundPipeline.registerService(backgroundMojangService);
         } else {
@@ -644,20 +659,15 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
             final @NonNull SQLiteUUIDService sqLiteUUIDService,
             final @NonNull CacheUUIDService cacheUUIDService
     ) {
-        // Load all uuids into a big chunky boi queue
-        final Queue<UUID> uuidQueue = new LinkedBlockingQueue<>();
+        // Record all unique UUID's and put them into a queue
+        final Set<UUID> uuidSet = new HashSet<>();
         PlotSquared.get().forEachPlotRaw(plot -> {
-            final Set<UUID> uuids = new HashSet<>();
-            uuids.add(plot.getOwnerAbs());
-            uuids.addAll(plot.getMembers());
-            uuids.addAll(plot.getTrusted());
-            uuids.addAll(plot.getDenied());
-            for (final UUID uuid : uuids) {
-                if (!uuidQueue.contains(uuid)) {
-                    uuidQueue.add(uuid);
-                }
-            }
+            uuidSet.add(plot.getOwnerAbs());
+            uuidSet.addAll(plot.getMembers());
+            uuidSet.addAll(plot.getTrusted());
+            uuidSet.addAll(plot.getDenied());
         });
+        final Queue<UUID> uuidQueue = new LinkedBlockingQueue<>(uuidSet);
 
         LOGGER.info("(UUID) {} UUIDs will be cached", uuidQueue.size());
 
@@ -718,6 +728,11 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
     @Override
     public void shutdown() {
         this.getServer().getPluginManager().disablePlugin(this);
+    }
+
+    @Override
+    public void shutdownServer() {
+        getServer().shutdown();
     }
 
     private void registerCommands() {
@@ -834,11 +849,11 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
                             // managed elsewhere
                             continue;
                         case "SHULKER":
-                            if (Settings.Enabled_Components.KILL_ROAD_MOBS) {
+                            if (Settings.Enabled_Components.KILL_ROAD_MOBS && (Settings.Enabled_Components.KILL_NAMED_ROAD_MOBS || entity.getCustomName() == null)) {
                                 LivingEntity livingEntity = (LivingEntity) entity;
                                 List<MetadataValue> meta = entity.getMetadata("shulkerPlot");
                                 if (!meta.isEmpty()) {
-                                    if (livingEntity.isLeashed()) {
+                                    if (livingEntity.isLeashed() && !Settings.Enabled_Components.KILL_OWNED_ROAD_MOBS) {
                                         continue;
                                     }
                                     List<MetadataValue> keep = entity.getMetadata("keep");
@@ -851,10 +866,8 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
                                         com.plotsquared.core.location.Location pLoc = BukkitUtil.adapt(entity.getLocation());
                                         PlotArea area = pLoc.getPlotArea();
                                         if (area != null) {
-                                            PlotId currentPlotId = area.getPlotAbs(pLoc).getId();
-                                            if (!originalPlotId.equals(currentPlotId) && (currentPlotId == null || !area.getPlot(
-                                                    originalPlotId)
-                                                    .equals(area.getPlot(currentPlotId)))) {
+                                            Plot currentPlot = area.getPlotAbs(pLoc);
+                                            if (currentPlot == null || !originalPlotId.equals(currentPlot.getId())) {
                                                 if (entity.hasMetadata("ps-tmp-teleport")) {
                                                     continue;
                                                 }
@@ -868,11 +881,11 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
                                     com.plotsquared.core.location.Location pLoc = BukkitUtil.adapt(entity.getLocation());
                                     PlotArea area = pLoc.getPlotArea();
                                     if (area != null) {
-                                        PlotId currentPlotId = area.getPlotAbs(pLoc).getId();
-                                        if (currentPlotId != null) {
+                                        Plot currentPlot = area.getPlotAbs(pLoc);
+                                        if (currentPlot != null) {
                                             entity.setMetadata(
                                                     "shulkerPlot",
-                                                    new FixedMetadataValue((Plugin) PlotSquared.platform(), currentPlotId)
+                                                    new FixedMetadataValue((Plugin) PlotSquared.platform(), currentPlot.getId())
                                             );
                                         }
                                     }
@@ -958,25 +971,26 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
                                                 || !entity.hasMetadata("keep")) {
                                             Entity passenger = entity.getPassenger();
                                             if ((Settings.Enabled_Components.KILL_OWNED_ROAD_MOBS
-                                                    || !(passenger instanceof Player)) && entity.getMetadata("keep").isEmpty()) {
+                                                    || !((passenger instanceof Player) || livingEntity.isLeashed()))
+                                                    && (Settings.Enabled_Components.KILL_NAMED_ROAD_MOBS || entity.getCustomName() == null)
+                                                    && entity.getMetadata("keep").isEmpty()) {
                                                 if (entity.hasMetadata("ps-tmp-teleport")) {
                                                     continue;
                                                 }
                                                 iterator.remove();
                                                 entity.remove();
-                                                continue;
                                             }
                                         }
                                     } else {
                                         Entity passenger = entity.getPassenger();
-                                        if ((Settings.Enabled_Components.KILL_OWNED_ROAD_MOBS
-                                                || !(passenger instanceof Player)) && entity.getMetadata("keep").isEmpty()) {
+                                        if ((Settings.Enabled_Components.KILL_OWNED_ROAD_MOBS || !(passenger instanceof Player))
+                                                && (Settings.Enabled_Components.KILL_NAMED_ROAD_MOBS && entity.getCustomName() != null)
+                                                && entity.getMetadata("keep").isEmpty()) {
                                             if (entity.hasMetadata("ps-tmp-teleport")) {
                                                 continue;
                                             }
                                             iterator.remove();
                                             entity.remove();
-                                            continue;
                                         }
                                     }
                                 }
@@ -991,10 +1005,11 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
     }
 
     @Override
-    public @Nullable final ChunkGenerator getDefaultWorldGenerator(
+    public @Nullable
+    final ChunkGenerator getDefaultWorldGenerator(
             final @NonNull String worldName,
-            final @Nullable String id)
-    {
+            final @Nullable String id
+    ) {
         final IndependentPlotGenerator result;
         if (id != null && id.equalsIgnoreCase("single")) {
             result = injector().getInstance(SingleWorldGenerator.class);
@@ -1023,7 +1038,8 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
             }
             return new BukkitPlotGenerator(world, gen, this.plotAreaManager);
         } else {
-            return new BukkitPlotGenerator(world,
+            return new BukkitPlotGenerator(
+                    world,
                     injector().getInstance(Key.get(IndependentPlotGenerator.class, DefaultGenerator.class)),
                     this.plotAreaManager
             );
@@ -1088,11 +1104,11 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
             String manager = worldConfig.getString("generator.plugin", pluginName());
             PlotAreaBuilder builder =
                     PlotAreaBuilder.newBuilder().plotManager(manager).generatorName(worldConfig.getString(
-                            "generator.init",
-                            manager
-                    ))
+                                    "generator.init",
+                                    manager
+                            ))
                             .plotAreaType(ConfigurationUtil.getType(worldConfig)).terrainType(ConfigurationUtil.getTerrain(
-                            worldConfig))
+                                    worldConfig))
                             .settingsNodesWrapper(new SettingsNodesWrapper(new ConfigurationNode[0], null)).worldName(worldName);
             injector().getInstance(SetupUtils.class).setupWorld(builder);
             world = Bukkit.getWorld(worldName);
@@ -1135,8 +1151,10 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
     @Override
     public @NonNull String pluginsFormatted() {
         StringBuilder msg = new StringBuilder();
-        Plugin[] plugins = Bukkit.getServer().getPluginManager().getPlugins();
-        msg.append("Plugins (").append(plugins.length).append("): \n");
+        List<Plugin> plugins = new ArrayList<>();
+        Collections.addAll(plugins, Bukkit.getServer().getPluginManager().getPlugins());
+        plugins.sort(Comparator.comparing(Plugin::getName));
+        msg.append("Plugins (").append(plugins.size()).append("): \n");
         for (Plugin p : plugins) {
             msg.append(" - ").append(p.getName()).append(":").append("\n")
                     .append("  • Version: ").append(p.getDescription().getVersion()).append("\n")
@@ -1146,6 +1164,21 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
                     .append("  • Load Before: ").append(p.getDescription().getLoadBefore()).append("\n")
                     .append("  • Dependencies: ").append(p.getDescription().getDepend()).append("\n")
                     .append("  • Soft Dependencies: ").append(p.getDescription().getSoftDepend()).append("\n");
+        }
+        return msg.toString();
+    }
+
+    @Override
+    @SuppressWarnings("ConstantConditions")
+    public @NonNull String worldEditImplementations() {
+        StringBuilder msg = new StringBuilder();
+        if (Bukkit.getPluginManager().getPlugin("FastAsyncWorldEdit") != null) {
+            msg.append("FastAsyncWorldEdit: ").append(Bukkit.getPluginManager().getPlugin("FastAsyncWorldEdit").getDescription().getVersion());
+        } else if (Bukkit.getPluginManager().getPlugin("AsyncWorldEdit") != null) {
+            msg.append("AsyncWorldEdit: ").append(Bukkit.getPluginManager().getPlugin("AsyncWorldEdit").getDescription().getVersion()).append("\n");
+            msg.append("WorldEdit: ").append(Bukkit.getPluginManager().getPlugin("WorldEdit").getDescription().getVersion());
+        } else {
+            msg.append("WorldEdit: ").append(Bukkit.getPluginManager().getPlugin("WorldEdit").getDescription().getVersion());
         }
         return msg.toString();
     }
@@ -1174,6 +1207,11 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
         return this.injector;
     }
 
+    @Override
+    public @NonNull PlotAreaManager plotAreaManager() {
+        return this.plotAreaManager;
+    }
+
     @NonNull
     @Override
     public Locale getLocale() {
@@ -1193,7 +1231,7 @@ public final class BukkitPlatform extends JavaPlugin implements Listener, PlotPl
 
     @Override
     @NonNull
-    @SuppressWarnings("ALL")
+    @SuppressWarnings("unchecked")
     public PlayerManager<? extends PlotPlayer<Player>, ? extends Player> playerManager() {
         return (PlayerManager<BukkitPlayer, Player>) injector().getInstance(PlayerManager.class);
     }

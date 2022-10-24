@@ -1,33 +1,28 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.util;
 
 import com.plotsquared.core.PlotSquared;
 import com.plotsquared.core.configuration.Settings;
+import com.plotsquared.core.configuration.caption.Caption;
 import com.plotsquared.core.configuration.caption.LocaleHolder;
+import com.plotsquared.core.configuration.caption.StaticCaption;
 import com.plotsquared.core.configuration.caption.TranslatableCaption;
 import com.plotsquared.core.database.DBFunc;
 import com.plotsquared.core.player.ConsolePlayer;
@@ -162,7 +157,9 @@ public abstract class PlayerManager<P extends PlotPlayer<? extends T>, T> {
      *
      * @param owner Owner UUID
      * @return The player's name, None, Everyone or Unknown
+     * @deprecated Use {@link #resolveName(UUID)}
      */
+    @Deprecated(forRemoval = true, since = "6.4.0")
     public static @NonNull String getName(final @Nullable UUID owner) {
         return getName(owner, true);
     }
@@ -173,7 +170,9 @@ public abstract class PlayerManager<P extends PlotPlayer<? extends T>, T> {
      * @param owner    Owner UUID
      * @param blocking Whether or not the operation can be blocking
      * @return The player's name, None, Everyone or Unknown
+     * @deprecated Use {@link #resolveName(UUID, boolean)}
      */
+    @Deprecated(forRemoval = true, since = "6.4.0")
     public static @NonNull String getName(final @Nullable UUID owner, final boolean blocking) {
         if (owner == null) {
             TranslatableCaption.of("info.none");
@@ -201,6 +200,57 @@ public abstract class PlayerManager<P extends PlotPlayer<? extends T>, T> {
             TranslatableCaption.of("info.unknown");
         }
         return name;
+    }
+
+    /**
+     * Attempts to resolve the username by an uuid
+     * <p>
+     * <b>Note:</b> blocks the thread until the name was resolved or failed
+     *
+     * @param owner The UUID of the owner
+     * @return A caption containing either the name, {@code None}, {@code Everyone} or {@code Unknown}
+     * @see #resolveName(UUID, boolean)
+     * @since 6.4.0
+     */
+    public static @NonNull Caption resolveName(final @Nullable UUID owner) {
+        return resolveName(owner, true);
+    }
+
+    /**
+     * Attempts to resolve the username by an uuid
+     *
+     * @param owner    The UUID of the owner
+     * @param blocking If the operation should block the current thread for {@link Settings.UUID#BLOCKING_TIMEOUT} milliseconds
+     * @return A caption containing either the name, {@code None}, {@code Everyone} or {@code Unknown}
+     * @since 6.4.0
+     */
+    public static @NonNull Caption resolveName(final @Nullable UUID owner, final boolean blocking) {
+        if (owner == null) {
+            return TranslatableCaption.of("info.none");
+        }
+        if (owner.equals(DBFunc.EVERYONE)) {
+            return TranslatableCaption.of("info.everyone");
+        }
+        if (owner.equals(DBFunc.SERVER)) {
+            return TranslatableCaption.of("info.server");
+        }
+        final String name;
+        if (blocking) {
+            name = PlotSquared.get().getImpromptuUUIDPipeline()
+                    .getSingle(owner, Settings.UUID.BLOCKING_TIMEOUT);
+        } else {
+            final UUIDMapping uuidMapping =
+                    PlotSquared.get().getImpromptuUUIDPipeline().getImmediately(owner);
+            if (uuidMapping != null) {
+                name = uuidMapping.getUsername();
+            } else {
+                name = null;
+            }
+        }
+        if (name == null) {
+            return TranslatableCaption.of("info.unknown");
+        }
+        return StaticCaption.of(name);
     }
 
     /**
@@ -257,7 +307,8 @@ public abstract class PlayerManager<P extends PlotPlayer<? extends T>, T> {
      * @param object Platform player object
      * @return Player object
      */
-    public @NonNull abstract P getPlayer(final @NonNull T object);
+    public @NonNull
+    abstract P getPlayer(final @NonNull T object);
 
     /**
      * Get a plot player from a UUID. This method requires
@@ -280,7 +331,8 @@ public abstract class PlayerManager<P extends PlotPlayer<? extends T>, T> {
         }
     }
 
-    public @NonNull abstract P createPlayer(final @NonNull UUID uuid);
+    public @NonNull
+    abstract P createPlayer(final @NonNull UUID uuid);
 
     /**
      * Get an an offline player object from the player's UUID
@@ -288,7 +340,8 @@ public abstract class PlayerManager<P extends PlotPlayer<? extends T>, T> {
      * @param uuid Player UUID
      * @return Offline player object
      */
-    public @Nullable abstract OfflinePlotPlayer getOfflinePlayer(final @Nullable UUID uuid);
+    public @Nullable
+    abstract OfflinePlotPlayer getOfflinePlayer(final @Nullable UUID uuid);
 
     /**
      * Get an offline player object from the player's username
@@ -296,7 +349,8 @@ public abstract class PlayerManager<P extends PlotPlayer<? extends T>, T> {
      * @param username Player name
      * @return Offline player object
      */
-    public @Nullable abstract OfflinePlotPlayer getOfflinePlayer(final @NonNull String username);
+    public @Nullable
+    abstract OfflinePlotPlayer getOfflinePlayer(final @NonNull String username);
 
     /**
      * Get all online players
@@ -311,7 +365,7 @@ public abstract class PlayerManager<P extends PlotPlayer<? extends T>, T> {
     public static final class NoSuchPlayerException extends IllegalArgumentException {
 
         public NoSuchPlayerException(final @NonNull UUID uuid) {
-            super(String.format("There is no online player with UUID '%s'", uuid.toString()));
+            super(String.format("There is no online player with UUID '%s'", uuid));
         }
 
     }

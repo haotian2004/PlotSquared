@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.plot;
 
@@ -89,11 +82,17 @@ public class PlotCluster {
     }
 
     private void setRegion() {
-        this.region = RegionUtil.createRegion(this.pos1.getX(), this.pos2.getX(),
+        this.region = RegionUtil.createRegion(this.pos1.getX(), this.pos2.getX(), 0, 0,
                 this.pos1.getY(), this.pos2.getY()
         );
     }
 
+    /**
+     * Returns a region of PlotIDs
+     *
+     * @deprecated - returns region of IDs, not of actual blocks.
+     */
+    @Deprecated
     public CuboidRegion getRegion() {
         return this.region;
     }
@@ -165,7 +164,7 @@ public class PlotCluster {
         Consumer<Location> locationConsumer = toReturn ->
                 PlotSquared.platform().worldUtil().getHighestBlock(this.area.getWorldName(), toReturn.getX(), toReturn.getZ(),
                         highest -> {
-                            if (highest == 0) {
+                            if (highest <= area.getMinBuildHeight()) {
                                 highest = 63;
                             }
                             if (highest > toReturn.getY()) {
@@ -175,12 +174,12 @@ public class PlotCluster {
                             }
                         }
                 );
-        if (home.getY() == 0) {
+        if (home.getY() == Integer.MIN_VALUE) {
             // default pos
             Plot center = getCenterPlot();
             center.getHome(location -> {
                 Location toReturn = location;
-                if (toReturn.getY() == 0) {
+                if (toReturn.getY() <= area.getMinBuildHeight()) {
                     PlotManager manager = this.area.getPlotManager();
                     Location locationSign = manager.getSignLoc(center);
                     toReturn = toReturn.withY(locationSign.getY());

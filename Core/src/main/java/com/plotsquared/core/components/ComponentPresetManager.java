@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.components;
 
@@ -47,10 +40,10 @@ import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.world.item.ItemTypes;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.Template;
-import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.io.File;
 import java.io.IOException;
@@ -71,11 +64,11 @@ public class ComponentPresetManager {
     private static final Logger LOGGER = LogManager.getLogger("PlotSquared/" + ComponentPresetManager.class.getSimpleName());
 
     private final List<ComponentPreset> presets;
-    private final String guiName;
     private final EconHandler econHandler;
     private final InventoryUtil inventoryUtil;
     private File componentsFile;
 
+    @SuppressWarnings("unchecked")
     @Inject
     public ComponentPresetManager(final @NonNull EconHandler econHandler, final @NonNull InventoryUtil inventoryUtil) throws
             IOException {
@@ -104,15 +97,14 @@ public class ComponentPresetManager {
 
         final YamlConfiguration yamlConfiguration = YamlConfiguration.loadConfiguration(this.componentsFile);
 
-        if (!yamlConfiguration.contains("title")) {
-            yamlConfiguration.set("title", "&6Plot Components");
+        if (yamlConfiguration.contains("title")) {
+            yamlConfiguration.set("title", "#Now in /lang/messages_%.json, preset.title");
             try {
                 yamlConfiguration.save(this.componentsFile);
             } catch (IOException e) {
                 LOGGER.error("Failed to save default values to components.yml", e);
             }
         }
-        this.guiName = yamlConfiguration.getString("title", "&6Plot Components");
 
         if (yamlConfiguration.contains("presets")) {
             this.presets = yamlConfiguration
@@ -123,12 +115,13 @@ public class ComponentPresetManager {
                     .collect(Collectors.toList());
         } else {
             final List<ComponentPreset> defaultPreset = Collections.singletonList(
-                    new ComponentPreset(ClassicPlotManagerComponent.FLOOR,
+                    new ComponentPreset(
+                            ClassicPlotManagerComponent.FLOOR,
                             "##wool",
                             0,
                             "",
                             "<rainbow:2>Disco Floor</rainbow>",
-                            Arrays.asList("<gold>Spice up your plot floor</gold>"),
+                            List.of("<gold>Spice up your plot floor</gold>"),
                             ItemTypes.YELLOW_WOOL
                     ));
             yamlConfiguration.set("presets", defaultPreset.stream().map(ComponentPreset::serialize).collect(Collectors.toList()));
@@ -160,7 +153,10 @@ public class ComponentPresetManager {
         } else if (!plot.hasOwner()) {
             player.sendMessage(TranslatableCaption.of("info.plot_unowned"));
             return null;
-        } else if (!plot.isOwner(player.getUUID()) && !plot.getTrusted().contains(player.getUUID()) && !Permissions.hasPermission(player, Permission.PERMISSION_ADMIN_COMPONENTS_OTHER)) {
+        } else if (!plot.isOwner(player.getUUID()) && !plot.getTrusted().contains(player.getUUID()) && !Permissions.hasPermission(
+                player,
+                Permission.PERMISSION_ADMIN_COMPONENTS_OTHER
+        )) {
             player.sendMessage(TranslatableCaption.of("permission.no_plot_perms"));
             return null;
         } else if (plot.getVolume() > Integer.MAX_VALUE) {
@@ -178,8 +174,13 @@ public class ComponentPresetManager {
             }
             allowedPresets.add(componentPreset);
         }
+        if (allowedPresets.isEmpty()) {
+            player.sendMessage(TranslatableCaption.of("preset.empty"));
+            return null;
+        }
         final int size = (int) Math.ceil((double) allowedPresets.size() / 9.0D);
-        final PlotInventory plotInventory = new PlotInventory(this.inventoryUtil, player, size, this.guiName) {
+        final PlotInventory plotInventory = new PlotInventory(this.inventoryUtil, player, size,
+                TranslatableCaption.of("preset.title").getComponent(player)) {
             @Override
             public boolean onClick(final int index) {
                 if (!getPlayer().getCurrentPlot().equals(plot)) {
@@ -206,7 +207,13 @@ public class ComponentPresetManager {
                     return false;
                 }
 
-                if (componentPreset.getCost() > 0.0D && econHandler.isEnabled(plot.getArea())) {
+                if (componentPreset.getCost() > 0.0D) {
+                    if (!econHandler.isEnabled(plot.getArea())) {
+                        getPlayer().sendMessage(
+                                TranslatableCaption.of("preset.economy_disabled"),
+                                Template.of("preset", componentPreset.getDisplayName()));
+                        return false;
+                    }
                     if (econHandler.getMoney(getPlayer()) < componentPreset.getCost()) {
                         getPlayer().sendMessage(TranslatableCaption.of("preset.preset_cannot_afford"));
                         return false;
@@ -242,11 +249,16 @@ public class ComponentPresetManager {
         for (int i = 0; i < allowedPresets.size(); i++) {
             final ComponentPreset preset = allowedPresets.get(i);
             final List<String> lore = new ArrayList<>();
-            if (preset.getCost() > 0 && this.econHandler.isEnabled(plot.getArea())) {
-                lore.add(MINI_MESSAGE.serialize(MINI_MESSAGE.parse(
-                        TranslatableCaption.of("preset.preset_lore_cost").getComponent(player),
-                        Template.of("cost", String.format("%.2f", preset.getCost()))
-                )));
+            if (preset.getCost() > 0) {
+                if (!this.econHandler.isEnabled(plot.getArea())) {
+                    lore.add(MINI_MESSAGE.serialize(MINI_MESSAGE.parse(
+                            TranslatableCaption.of("preset.preset_lore_economy_disabled").getComponent(player))));
+                } else {
+                    lore.add(MINI_MESSAGE.serialize(MINI_MESSAGE.parse(
+                            TranslatableCaption.of("preset.preset_lore_cost").getComponent(player),
+                            Template.of("cost", String.format("%.2f", preset.getCost()))
+                    )));
+                }
             }
             lore.add(MINI_MESSAGE.serialize(MINI_MESSAGE.parse(
                     TranslatableCaption.of("preset.preset_lore_component").getComponent(player),

@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.queue;
 
@@ -35,6 +28,7 @@ import com.sk89q.worldedit.entity.Entity;
 import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.math.BlockVector2;
 import com.sk89q.worldedit.regions.CuboidRegion;
+import com.sk89q.worldedit.util.SideEffectSet;
 import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.block.BaseBlock;
@@ -44,6 +38,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public abstract class QueueCoordinator {
@@ -51,7 +46,9 @@ public abstract class QueueCoordinator {
     private boolean forceSync = false;
     @Nullable
     private Object chunkObject;
+    private final AtomicBoolean enqueued = new AtomicBoolean();
 
+    @SuppressWarnings({"unused", "FieldCanBeLocal"})
     @Inject
     private GlobalBlockQueue blockQueue;
 
@@ -70,12 +67,31 @@ public abstract class QueueCoordinator {
      * @param x chunk x coordinate
      * @param z chunk z coordinate
      * @return a new {@link ScopedQueueCoordinator}
+     * @deprecated Use {@link ScopedQueueCoordinator#getForChunk(int, int, int, int)}
      */
+    @Deprecated(forRemoval = true, since = "6.6.0")
     public ScopedQueueCoordinator getForChunk(int x, int z) {
+        if (getWorld() == null) {
+            return getForChunk(x, z, PlotSquared.platform().versionMinHeight(), PlotSquared.platform().versionMaxHeight());
+        }
+        return getForChunk(x, z, getWorld().getMinY(), getWorld().getMaxY());
+    }
+
+    /**
+     * Get a {@link ScopedQueueCoordinator} limited to the chunk at the specific chunk Coordinates
+     *
+     * @param x chunk x coordinate
+     * @param z chunk z coordinate
+     * @return a new {@link ScopedQueueCoordinator}
+     * @since 6.6.0
+     * @deprecated {@link ScopedQueueCoordinator} will be renamed in v7.
+     */
+    @Deprecated(forRemoval = true, since = "6.9.0")
+    public ScopedQueueCoordinator getForChunk(int x, int z, int minY, int maxY) {
         int bx = x << 4;
         int bz = z << 4;
-        return new ScopedQueueCoordinator(this, Location.at(getWorld().getName(), bx, 0, bz),
-                Location.at(getWorld().getName(), bx + 15, 255, bz + 255)
+        return new ScopedQueueCoordinator(this, Location.at(getWorld().getName(), bx, minY, bz),
+                Location.at(getWorld().getName(), bx + 15, maxY, bz + 15)
         );
     }
 
@@ -94,7 +110,8 @@ public abstract class QueueCoordinator {
     public abstract void setModified(long modified);
 
     /**
-     * Returns true if the queue should be forced to be synchronous when enqueued.
+     * Returns true if the queue should be forced to be synchronous when enqueued. This is not necessarily synchronous to the
+     * server, and simply effectively makes {@link QueueCoordinator#enqueue()} a blocking operation.
      *
      * @return is force sync
      */
@@ -103,7 +120,8 @@ public abstract class QueueCoordinator {
     }
 
     /**
-     * Set whether the queue should be forced to be synchronous
+     * Set whether the queue should be forced to be synchronous. This is not necessarily synchronous to the server, and simply
+     * effectively makes {@link QueueCoordinator#enqueue()} a blocking operation.
      *
      * @param forceSync force sync or not
      */
@@ -121,7 +139,8 @@ public abstract class QueueCoordinator {
     }
 
     /**
-     * Set a chunk object (e.g. the Bukkit Chunk object) to the queue
+     * Set a chunk object (e.g. the Bukkit Chunk object) to the queue. This will be used as fallback in case of WNA failure.
+     * Should ONLY be used in specific cases (i.e. generation, where a chunk is being populated)
      *
      * @param chunkObject chunk object. Usually the implementation-specific chunk (e.g. bukkit Chunk)
      */
@@ -190,7 +209,8 @@ public abstract class QueueCoordinator {
      * @param z block z
      * @return WorldEdit BlockState
      */
-    public @Nullable abstract BlockState getBlock(int x, int y, int z);
+    public @Nullable
+    abstract BlockState getBlock(int x, int y, int z);
 
     /**
      * Set a biome in XZ. This will likely set to the whole column
@@ -199,12 +219,11 @@ public abstract class QueueCoordinator {
      * @param z     z coordinate
      * @param biome biome
      * @return success or not
-     *
-     * @deprecated Biomes now take XYZ, see {@code setBiome int x, int y, int z}
-     * <br>
-     * Scheduled for removal once we drop the support for versions not supporting 3D biomes.
+     * @deprecated Biomes now take XYZ, see {@link #setBiome(int, int, int, BiomeType)}
+     *         <br>
+     *         Scheduled for removal once we drop the support for versions not supporting 3D biomes.
      */
-    @Deprecated(forRemoval = true)
+    @Deprecated(forRemoval = true, since = "6.0.0")
     public abstract boolean setBiome(int x, int z, @NonNull BiomeType biome);
 
     /**
@@ -224,6 +243,14 @@ public abstract class QueueCoordinator {
      * @return if setting biomes
      */
     public abstract boolean isSettingBiomes();
+
+    /**
+     * If the queue should accept biome placement
+     *
+     * @param enabled If biomes should be enabled
+     * @since 6.8.0
+     */
+    public abstract void setBiomesEnabled(boolean enabled);
 
     /**
      * Add entities to be created
@@ -249,7 +276,8 @@ public abstract class QueueCoordinator {
      *
      * @return list of BlockVector2 of chunks that are to be "read"
      */
-    public @NonNull abstract List<BlockVector2> getReadChunks();
+    public @NonNull
+    abstract List<BlockVector2> getReadChunks();
 
     /**
      * Add a set of {@link BlockVector2} Chunk coordinates to the Read Chunks list
@@ -284,7 +312,8 @@ public abstract class QueueCoordinator {
      *
      * @return CuboidRegion to regenerate
      */
-    public @Nullable abstract CuboidRegion getRegenRegion();
+    public @Nullable
+    abstract CuboidRegion getRegenRegion();
 
     /**
      * Set the {@link CuboidRegion} designated for direct regeneration
@@ -306,7 +335,8 @@ public abstract class QueueCoordinator {
      *
      * @return world of the queue
      */
-    public @Nullable abstract World getWorld();
+    public @Nullable
+    abstract World getWorld();
 
     /**
      * Set the queue as having been modified now
@@ -316,12 +346,18 @@ public abstract class QueueCoordinator {
     }
 
     /**
-     * Enqueue the queue with the {@link GlobalBlockQueue}
+     * Enqueue the queue to start it
      *
      * @return success or not
+     * @since 6.0.10
      */
     public boolean enqueue() {
-        return blockQueue.enqueue(this);
+        boolean success = false;
+        if (enqueued.compareAndSet(false, true)) {
+            success = true;
+            start();
+        }
+        return success;
     }
 
     /**
@@ -330,7 +366,7 @@ public abstract class QueueCoordinator {
     public abstract void start();
 
     /**
-     * Cancel the queue. Not yet implemented.
+     * Cancel the queue
      */
     public abstract void cancel();
 
@@ -353,7 +389,8 @@ public abstract class QueueCoordinator {
      *
      * @return Consumer to be executed on each chunk in queue
      */
-    public @Nullable abstract Consumer<BlockVector2> getChunkConsumer();
+    public @Nullable
+    abstract Consumer<BlockVector2> getChunkConsumer();
 
     /**
      * Set the Consumer that will be executed on each chunk in queue
@@ -370,7 +407,8 @@ public abstract class QueueCoordinator {
     /**
      * Get the {@link LightingMode} to be used when setting blocks
      */
-    public @NonNull abstract LightingMode getLightingMode();
+    public @NonNull
+    abstract LightingMode getLightingMode();
 
     /**
      * Set the {@link LightingMode} to be used when setting blocks
@@ -378,6 +416,20 @@ public abstract class QueueCoordinator {
      * @param mode lighting mode. Null to use default.
      */
     public abstract void setLightingMode(@Nullable LightingMode mode);
+
+    /**
+     * Get the overriding {@link SideEffectSet} to be used by the queue if it exists, else null
+     *
+     * @return Overriding {@link SideEffectSet} or null
+     */
+    public abstract @Nullable SideEffectSet getSideEffectSet();
+
+    /**
+     * Set the overriding {@link SideEffectSet} to be used by the queue. Null to use default side effects.
+     *
+     * @param sideEffectSet side effects to override with, or null to use default
+     */
+    public abstract void setSideEffectSet(@Nullable SideEffectSet sideEffectSet);
 
     /**
      * Fill a cuboid between two positions with a BlockState
@@ -388,7 +440,7 @@ public abstract class QueueCoordinator {
      */
     public void setCuboid(@NonNull Location pos1, @NonNull Location pos2, @NonNull BlockState block) {
         int yMin = Math.min(pos1.getY(), pos2.getY());
-        int yMax = Math.min(255, Math.max(pos1.getY(), pos2.getY()));
+        int yMax = Math.max(pos1.getY(), pos2.getY());
         int xMin = Math.min(pos1.getX(), pos2.getX());
         int xMax = Math.max(pos1.getX(), pos2.getX());
         int zMin = Math.min(pos1.getZ(), pos2.getZ());
@@ -411,7 +463,7 @@ public abstract class QueueCoordinator {
      */
     public void setCuboid(@NonNull Location pos1, @NonNull Location pos2, @NonNull Pattern blocks) {
         int yMin = Math.min(pos1.getY(), pos2.getY());
-        int yMax = Math.min(255, Math.max(pos1.getY(), pos2.getY()));
+        int yMax = Math.max(pos1.getY(), pos2.getY());
         int xMin = Math.min(pos1.getX(), pos2.getX());
         int xMax = Math.max(pos1.getX(), pos2.getX());
         int zMin = Math.min(pos1.getZ(), pos2.getZ());
@@ -434,7 +486,7 @@ public abstract class QueueCoordinator {
      */
     public void setBiomeCuboid(@NonNull Location pos1, @NonNull Location pos2, @NonNull BiomeType biome) {
         int yMin = Math.min(pos1.getY(), pos2.getY());
-        int yMax = Math.min(255, Math.max(pos1.getY(), pos2.getY()));
+        int yMax = Math.max(pos1.getY(), pos2.getY());
         int xMin = Math.min(pos1.getX(), pos2.getX());
         int xMax = Math.max(pos1.getX(), pos2.getX());
         int zMin = Math.min(pos1.getZ(), pos2.getZ());
@@ -446,6 +498,34 @@ public abstract class QueueCoordinator {
                 }
             }
         }
+    }
+
+    /**
+     * Get the min Y limit associated with the queue
+     */
+    protected int getMinY() {
+        return getWorld() != null ? getWorld().getMinY() : PlotSquared.platform().versionMinHeight();
+    }
+
+    /**
+     * Get the max Y limit associated with the queue
+     */
+    protected int getMaxY() {
+        return getWorld() != null ? getWorld().getMinY() : PlotSquared.platform().versionMaxHeight();
+    }
+
+    /**
+     * Get the min chunk layer associated with the queue. Usually 0 or -4;
+     */
+    protected int getMinLayer() {
+        return (getWorld() != null ? getWorld().getMinY() : PlotSquared.platform().versionMinHeight()) >> 4;
+    }
+
+    /**
+     * Get the max chunk layer associated with the queue. Usually 15 or 19
+     */
+    protected int getMaxLayer() {
+        return (getWorld() != null ? getWorld().getMaxY() : PlotSquared.platform().versionMaxHeight()) >> 4;
     }
 
 }

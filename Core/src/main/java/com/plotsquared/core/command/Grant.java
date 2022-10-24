@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.command;
 
@@ -39,7 +32,6 @@ import com.plotsquared.core.util.TabCompletions;
 import com.plotsquared.core.util.task.RunnableVal;
 import com.plotsquared.core.util.task.RunnableVal2;
 import com.plotsquared.core.util.task.RunnableVal3;
-import com.plotsquared.core.uuid.UUIDMapping;
 import net.kyori.adventure.text.minimessage.Template;
 
 import java.util.Collection;
@@ -47,6 +39,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
@@ -83,7 +76,7 @@ public class Grant extends Command {
                     );
                     return CompletableFuture.completedFuture(false);
                 }
-                if (args.length > 2) {
+                if (args.length != 2) {
                     break;
                 }
                 PlayerManager.getUUIDsFromString(args[1], (uuids, throwable) -> {
@@ -95,8 +88,8 @@ public class Grant extends Command {
                                 Template.of("value", String.valueOf(uuids))
                         );
                     } else {
-                        final UUIDMapping uuid = uuids.toArray(new UUIDMapping[0])[0];
-                        PlotPlayer<?> pp = PlotSquared.platform().playerManager().getPlayerIfExists(uuid.getUuid());
+                        final UUID uuid = uuids.iterator().next();
+                        PlotPlayer<?> pp = PlotSquared.platform().playerManager().getPlayerIfExists(uuid);
                         if (pp != null) {
                             try (final MetaDataAccess<Integer> access = pp.accessPersistentMetaData(
                                     PlayerMetaDataKeys.PERSISTENT_GRANTED_PLOTS)) {
@@ -110,7 +103,7 @@ public class Grant extends Command {
                                 }
                             }
                         } else {
-                            DBFunc.getPersistentMeta(uuid.getUuid(), new RunnableVal<>() {
+                            DBFunc.getPersistentMeta(uuid, new RunnableVal<>() {
                                 @Override
                                 public void run(Map<String, byte[]> value) {
                                     final byte[] array = value.get("grantedPlots");
@@ -135,7 +128,7 @@ public class Grant extends Command {
                                         boolean replace = array != null;
                                         String key = "grantedPlots";
                                         byte[] rawData = Ints.toByteArray(amount);
-                                        DBFunc.addPersistentMeta(uuid.getUuid(), key, rawData, replace);
+                                        DBFunc.addPersistentMeta(uuid, key, rawData, replace);
                                         player.sendMessage(
                                                 TranslatableCaption.of("grants.added"),
                                                 Template.of("grants", String.valueOf(amount))
@@ -164,8 +157,8 @@ public class Grant extends Command {
                 completions.add("check");
             }
             final List<Command> commands = completions.stream().filter(completion -> completion
-                    .toLowerCase()
-                    .startsWith(args[0].toLowerCase()))
+                            .toLowerCase()
+                            .startsWith(args[0].toLowerCase()))
                     .map(completion -> new Command(
                             null,
                             true,
@@ -176,11 +169,11 @@ public class Grant extends Command {
                     ) {
                     }).collect(Collectors.toCollection(LinkedList::new));
             if (Permissions.hasPermission(player, Permission.PERMISSION_GRANT_SINGLE) && args[0].length() > 0) {
-                commands.addAll(TabCompletions.completePlayers(args[0], Collections.emptyList()));
+                commands.addAll(TabCompletions.completePlayers(player, args[0], Collections.emptyList()));
             }
             return commands;
         }
-        return TabCompletions.completePlayers(String.join(",", args).trim(), Collections.emptyList());
+        return TabCompletions.completePlayers(player, String.join(",", args).trim(), Collections.emptyList());
     }
 
 }

@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core.util;
 
@@ -61,7 +54,7 @@ public abstract class RegionManager {
     private static final Logger LOGGER = LogManager.getLogger("PlotSquared/" + RegionManager.class.getSimpleName());
 
     public static RegionManager manager = null;
-    private final WorldUtil worldUtil;
+    protected final WorldUtil worldUtil;
     private final GlobalBlockQueue blockQueue;
     private final ProgressSubscriberFactory subscriberFactory;
 
@@ -120,7 +113,7 @@ public abstract class RegionManager {
      * @param actor   the actor associated with the cuboid set
      * @param queue   Nullable {@link QueueCoordinator}. If null, creates own queue and enqueues,
      *                otherwise writes to the queue but does not enqueue.
-     * @return true if not enqueued, otherwise whether the created queue enqueued.
+     * @return {@code true} if not enqueued, otherwise whether the created queue enqueued.
      */
     public boolean setCuboids(
             final @NonNull PlotArea area,
@@ -161,7 +154,7 @@ public abstract class RegionManager {
      * Notify any plugins that may want to modify clear behaviour that a clear is occuring
      *
      * @param manager plot manager
-     * @return true if the notified will accept the clear task
+     * @return {@code true} if the notified will accept the clear task
      */
     public boolean notifyClear(PlotManager manager) {
         return false;
@@ -174,7 +167,7 @@ public abstract class RegionManager {
      * @param whenDone task to run when complete
      * @param manager  plot manager
      * @param actor    the player running the clear
-     * @return true if the clear worked. False if someone went wrong so P2 can then handle the clear
+     * @return {@code true} if the clear worked. {@code false} if someone went wrong so PlotSquared can then handle the clear
      */
     public abstract boolean handleClear(
             @NonNull Plot plot,
@@ -279,7 +272,10 @@ public abstract class RegionManager {
         fromQueue1.addReadChunks(new CuboidRegion(pos1.getBlockVector3(), pos2.getBlockVector3()).getChunks());
         fromQueue2.addReadChunks(new CuboidRegion(
                 swapPos.getBlockVector3(),
-                BlockVector3.at(swapPos.getX() + pos2.getX() - pos1.getX(), 0, swapPos.getZ() + pos2.getZ() - pos1.getZ())
+                BlockVector3.at(swapPos.getX() + pos2.getX() - pos1.getX(),
+                        pos1.getY(),
+                        swapPos.getZ() + pos2.getZ() - pos1.getZ()
+                )
         ).getChunks());
         QueueCoordinator toQueue1 = blockQueue.getNewQueue(world1);
         QueueCoordinator toQueue2 = blockQueue.getNewQueue(world2);
@@ -289,7 +285,7 @@ public abstract class RegionManager {
                 true
         );
 
-        toQueue2.setCompleteTask(whenDone::run);
+        toQueue2.setCompleteTask(whenDone);
         if (actor != null && Settings.QUEUE.NOTIFY_PROGRESS) {
             toQueue2.addProgressSubscriber(subscriberFactory.createFull(
                     actor,
@@ -352,7 +348,7 @@ public abstract class RegionManager {
             int bz = Math.max(pos1.getZ(), cbz) & 15;
             int tx = Math.min(pos2.getX(), cbx + 15) & 15;
             int tz = Math.min(pos2.getZ(), cbz + 15) & 15;
-            for (int y = 0; y < 256; y++) {
+            for (int y = world1.getMinY(); y <= world1.getMaxY(); y++) {
                 for (int x = bx; x <= tx; x++) {
                     for (int z = bz; z <= tz; z++) {
                         int rx = cbx + x;
@@ -363,7 +359,10 @@ public abstract class RegionManager {
                     }
                 }
             }
-            Region region = new CuboidRegion(BlockVector3.at(cbx + bx, 0, cbz + bz), BlockVector3.at(cbx + tx, 255, cbz + tz));
+            Region region = new CuboidRegion(
+                    BlockVector3.at(cbx + bx, world1.getMinY(), cbz + bz),
+                    BlockVector3.at(cbx + tx, world1.getMaxY(), cbz + tz)
+            );
             toQueue.addEntities(world1.getEntities(region));
             if (removeEntities) {
                 for (Entity entity : world1.getEntities(region)) {
@@ -373,6 +372,7 @@ public abstract class RegionManager {
         });
     }
 
+    @Deprecated(forRemoval = true, since = "6.6.0")
     public void setBiome(
             final CuboidRegion region,
             final int extendBiome,
@@ -380,39 +380,48 @@ public abstract class RegionManager {
             final String world,
             final Runnable whenDone
     ) {
-        Location pos1 = Location
-                .at(
-                        world,
-                        region.getMinimumPoint().getX() - extendBiome,
-                        region.getMinimumPoint().getY(),
-                        region.getMinimumPoint().getZ() - extendBiome
-                );
-        Location pos2 = Location
-                .at(
-                        world,
-                        region.getMaximumPoint().getX() + extendBiome,
-                        region.getMaximumPoint().getY(),
-                        region.getMaximumPoint().getZ() + extendBiome
-                );
-        final QueueCoordinator queue = blockQueue.getNewQueue(worldUtil.getWeWorld(world));
+        setBiome(region, extendBiome, biome, PlotSquared.get().getPlotAreaManager().getPlotAreas(world, region)[0], whenDone);
+    }
 
-        final int minX = pos1.getX();
-        final int minZ = pos1.getZ();
-        final int maxX = pos2.getX();
-        final int maxZ = pos2.getZ();
+    /**
+     * Set a region to a biome type.
+     *
+     * @param region      region to set
+     * @param extendBiome how far outside the region to extent setting the biome too account for 3D biomes being 4x4
+     * @param biome       biome to set
+     * @param area        {@link PlotArea} in which the biome is being set
+     * @param whenDone    task to run when complete
+     * @since 6.6.0
+     */
+    public void setBiome(
+            final CuboidRegion region,
+            final int extendBiome,
+            final BiomeType biome,
+            final PlotArea area,
+            final Runnable whenDone
+    ) {
+        final QueueCoordinator queue = blockQueue.getNewQueue(worldUtil.getWeWorld(area.getWorldName()));
         queue.addReadChunks(region.getChunks());
-        queue.setChunkConsumer(blockVector2 -> {
-            final int cx = blockVector2.getX() << 4;
-            final int cz = blockVector2.getZ() << 4;
+        final BlockVector3 regionMin = region.getMinimumPoint();
+        final BlockVector3 regionMax = region.getMaximumPoint();
+        queue.setChunkConsumer(chunkPos -> {
+            BlockVector3 chunkMin = BlockVector3.at(
+                    Math.max(chunkPos.getX() << 4, regionMin.getBlockX()),
+                    regionMin.getBlockY(),
+                    Math.max(chunkPos.getZ() << 4, regionMin.getBlockZ())
+            );
+            BlockVector3 chunkMax = BlockVector3.at(
+                    Math.min((chunkPos.getX() << 4) + 15, regionMax.getBlockX()),
+                    regionMax.getBlockY(),
+                    Math.min((chunkPos.getZ() << 4) + 15, regionMax.getBlockZ())
+            );
+            CuboidRegion chunkRegion = new CuboidRegion(region.getWorld(), chunkMin, chunkMax);
             WorldUtil.setBiome(
-                    world,
-                    Math.max(minX, cx),
-                    Math.max(minZ, cz),
-                    Math.min(maxX, cx + 15),
-                    Math.min(maxZ, cz + 15),
+                    area.getWorldName(),
+                    chunkRegion,
                     biome
             );
-            worldUtil.refreshChunk(blockVector2.getBlockX(), blockVector2.getBlockZ(), world);
+            worldUtil.refreshChunk(chunkPos.getBlockX(), chunkPos.getBlockZ(), area.getWorldName());
         });
         queue.setCompleteTask(whenDone);
         queue.enqueue();

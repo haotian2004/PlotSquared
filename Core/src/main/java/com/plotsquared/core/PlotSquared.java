@@ -1,27 +1,20 @@
 /*
- *       _____  _       _    _____                                _
- *      |  __ \| |     | |  / ____|                              | |
- *      | |__) | | ___ | |_| (___   __ _ _   _  __ _ _ __ ___  __| |
- *      |  ___/| |/ _ \| __|\___ \ / _` | | | |/ _` | '__/ _ \/ _` |
- *      | |    | | (_) | |_ ____) | (_| | |_| | (_| | | |  __/ (_| |
- *      |_|    |_|\___/ \__|_____/ \__, |\__,_|\__,_|_|  \___|\__,_|
- *                                    | |
- *                                    |_|
- *            PlotSquared plot management system for Minecraft
- *                  Copyright (C) 2021 IntellectualSites
+ * PlotSquared, a land and world management plugin for Minecraft.
+ * Copyright (C) IntellectualSites <https://intellectualsites.com>
+ * Copyright (C) IntellectualSites team and contributors
  *
- *     This program is free software: you can redistribute it and/or modify
- *     it under the terms of the GNU General Public License as published by
- *     the Free Software Foundation, either version 3 of the License, or
- *     (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     This program is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.plotsquared.core;
 
@@ -72,12 +65,15 @@ import com.plotsquared.core.util.ReflectionUtils;
 import com.plotsquared.core.util.task.TaskManager;
 import com.plotsquared.core.uuid.UUIDPipeline;
 import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.event.platform.PlatformReadyEvent;
 import com.sk89q.worldedit.math.BlockVector2;
+import com.sk89q.worldedit.util.eventbus.EventHandler;
+import com.sk89q.worldedit.util.eventbus.Subscribe;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -135,8 +131,8 @@ public class PlotSquared {
             new UUIDPipeline(Executors.newSingleThreadExecutor());
     // Localization
     private final Map<String, CaptionMap> captionMaps = new HashMap<>();
-    private CaptionLoader captionLoader;
     public HashMap<String, HashMap<PlotId, Plot>> plots_tmp;
+    private CaptionLoader captionLoader;
     // WorldEdit instance
     private WorldEdit worldedit;
     private File configFile;
@@ -152,6 +148,8 @@ public class PlotSquared {
     private File storageFile;
     private EventDispatcher eventDispatcher;
     private PlotListener plotListener;
+
+    private boolean weInitialised;
 
     /**
      * Initialize PlotSquared with the desired Implementation class.
@@ -199,6 +197,9 @@ public class PlotSquared {
             this.loadCaptionMap();
         } catch (final Exception e) {
             LOGGER.error("Failed to load caption map", e);
+            LOGGER.error("Shutting down server to prevent further issues");
+            this.platform.shutdownServer();
+            throw new RuntimeException("Abort loading PlotSquared");
         }
 
         // Setup the global flag container
@@ -223,6 +224,7 @@ public class PlotSquared {
             }
 
             this.worldedit = WorldEdit.getInstance();
+            WorldEdit.getInstance().getEventBus().register(new WEPlatformReadyListener());
 
             // Create Event utility class
             this.eventDispatcher = new EventDispatcher(this.worldedit);
@@ -268,7 +270,7 @@ public class PlotSquared {
             captionMap = this.captionLoader.loadAll(this.platform.getDirectory().toPath().resolve("lang"));
         } else {
             String fileName = "messages_" + Settings.Enabled_Components.DEFAULT_LOCALE + ".json";
-            captionMap = this.captionLoader.loadSingle(this.platform.getDirectory().toPath().resolve("lang").resolve(fileName));
+            captionMap = this.captionLoader.loadOrCreateSingle(this.platform.getDirectory().toPath().resolve("lang").resolve(fileName));
         }
         this.captionMaps.put(TranslatableCaption.DEFAULT_NAMESPACE, captionMap);
         LOGGER.info(
@@ -283,16 +285,16 @@ public class PlotSquared {
      * @return Plot area manager
      */
     public @NonNull PlotAreaManager getPlotAreaManager() {
-        return this.platform.injector().getInstance(PlotAreaManager.class);
+        return this.platform.plotAreaManager();
     }
 
     public void startExpiryTasks() {
         if (Settings.Enabled_Components.PLOT_EXPIRY) {
-            ExpireManager.IMP = new ExpireManager(this.eventDispatcher);
-            ExpireManager.IMP.runAutomatedTask();
+            ExpireManager expireManager = PlotSquared.platform().expireManager();
+            expireManager.runAutomatedTask();
             for (Settings.Auto_Clear settings : Settings.AUTO_CLEAR.getInstances()) {
                 ExpiryTask task = new ExpiryTask(settings, this.getPlotAreaManager());
-                ExpireManager.IMP.addTask(task);
+                expireManager.addTask(task);
             }
         }
     }
@@ -306,7 +308,7 @@ public class PlotSquared {
      *
      * @param version  First version
      * @param version2 Second version
-     * @return true if `version` is &gt;= `version2`
+     * @return {@code true} if `version` is &gt;= `version2`
      */
     public boolean checkVersion(
             final int[] version,
@@ -338,10 +340,13 @@ public class PlotSquared {
 
     /**
      * Add a global reference to a plot world.
+     * <p>
+     * You can remove the reference by calling {@link #removePlotArea(PlotArea)}
+     * </p>
      *
-     * @param plotArea the {@code PlotArea} to add.
-     * @see #removePlotArea(PlotArea) To remove the reference
+     * @param plotArea the {@link PlotArea} to add.
      */
+    @SuppressWarnings("unchecked")
     public void addPlotArea(final @NonNull PlotArea plotArea) {
         HashMap<PlotId, Plot> plots;
         if (plots_tmp == null || (plots = plots_tmp.remove(plotArea.toString())) == null) {
@@ -429,7 +434,7 @@ public class PlotSquared {
     /**
      * Remove a plot world reference.
      *
-     * @param area the {@code PlotArea} to remove
+     * @param area the {@link PlotArea} to remove
      */
     public void removePlotArea(final @NonNull PlotArea area) {
         getPlotAreaManager().removePlotArea(area);
@@ -556,7 +561,8 @@ public class PlotSquared {
      *
      * @param input an array of plots to sort
      */
-    private void sortPlotsByHash(final @NonNull Plot @NonNull[] input) {
+    @SuppressWarnings("unchecked")
+    private void sortPlotsByHash(final @NonNull Plot @NonNull [] input) {
         List<Plot>[] bucket = new ArrayList[32];
         Arrays.fill(bucket, new ArrayList<>());
         boolean maxLength = false;
@@ -639,7 +645,8 @@ public class PlotSquared {
         } else {
             list = new ArrayList<>(input);
         }
-        list.sort(Comparator.comparingLong(a -> ExpireManager.IMP.getTimestamp(a.getOwnerAbs())));
+        ExpireManager expireManager = PlotSquared.platform().expireManager();
+        list.sort(Comparator.comparingLong(a -> expireManager.getTimestamp(a.getOwnerAbs())));
         return list;
     }
 
@@ -696,20 +703,12 @@ public class PlotSquared {
         ArrayList<Plot> toReturn = new ArrayList<>(plots.size());
         for (PlotArea area : areas) {
             switch (type) {
-                case CREATION_DATE:
-                    toReturn.addAll(sortPlotsByTemp(map.get(area)));
-                    break;
-                case CREATION_DATE_TIMESTAMP:
-                    toReturn.addAll(sortPlotsByTimestamp(map.get(area)));
-                    break;
-                case DISTANCE_FROM_ORIGIN:
-                    toReturn.addAll(sortPlotsByHash(map.get(area)));
-                    break;
-                case LAST_MODIFIED:
-                    toReturn.addAll(sortPlotsByModified(map.get(area)));
-                    break;
-                default:
-                    break;
+                case CREATION_DATE -> toReturn.addAll(sortPlotsByTemp(map.get(area)));
+                case CREATION_DATE_TIMESTAMP -> toReturn.addAll(sortPlotsByTimestamp(map.get(area)));
+                case DISTANCE_FROM_ORIGIN -> toReturn.addAll(sortPlotsByHash(map.get(area)));
+                case LAST_MODIFIED -> toReturn.addAll(sortPlotsByModified(map.get(area)));
+                default -> {
+                }
             }
         }
         return toReturn;
@@ -739,7 +738,7 @@ public class PlotSquared {
      *
      * @param plot      the plot to remove
      * @param callEvent If to call an event about the plot being removed
-     * @return true if plot existed | false if it didn't
+     * @return {@code true} if plot existed | {@code false} if it didn't
      */
     public boolean removePlot(
             final @NonNull Plot plot,
@@ -757,6 +756,9 @@ public class PlotSquared {
             int this_max = Math.max(Math.abs(plot.getId().getX()), Math.abs(plot.getId().getY()));
             if (this_max < last_max) {
                 plot.getArea().setMeta("lastPlot", plot.getId());
+            }
+            if (callEvent) {
+                eventDispatcher.callPostDelete(plot);
             }
             return true;
         }
@@ -890,8 +892,8 @@ public class PlotSquared {
                             e.printStackTrace();
                         }
                         LOGGER.info("| generator: {}>{}", baseGenerator, areaGen);
-                        LOGGER.info("| plot world: {}", pa);
-                        LOGGER.info("| manager: {}", pa);
+                        LOGGER.info("| plot world: {}", pa.getClass().getCanonicalName());
+                        LOGGER.info("| manager: {}", pa.getPlotManager().getClass().getCanonicalName());
                         LOGGER.info("Note: Area created for cluster '{}' (invalid or old configuration?)", name);
                         areaGen.getPlotGenerator().initialize(pa);
                         areaGen.augment(pa);
@@ -907,6 +909,13 @@ public class PlotSquared {
                     throw new IllegalArgumentException("Invalid Generator: " + gen_string);
                 }
                 PlotArea pa = areaGen.getPlotGenerator().getNewPlotArea(world, null, null, null);
+                LOGGER.info("- generator: {}>{}", baseGenerator, areaGen);
+                LOGGER.info("- plot world: {}", pa.getClass().getCanonicalName());
+                LOGGER.info("- plot area manager: {}", pa.getPlotManager().getClass().getCanonicalName());
+                if (!this.worldConfiguration.contains(path)) {
+                    this.worldConfiguration.createSection(path);
+                    worldSection = this.worldConfiguration.getConfigurationSection(path);
+                }
                 pa.saveConfiguration(worldSection);
                 pa.loadDefaultConfiguration(worldSection);
                 try {
@@ -914,9 +923,6 @@ public class PlotSquared {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-                LOGGER.info("- generator: {}>{}", baseGenerator, areaGen);
-                LOGGER.info("- plot world: {}", pa);
-                LOGGER.info("- plot area manager: {}", pa.getPlotManager());
                 areaGen.getPlotGenerator().initialize(pa);
                 areaGen.augment(pa);
                 addPlotArea(pa);
@@ -1021,8 +1027,8 @@ public class PlotSquared {
             // save configuration
 
             final List<String> validArguments = Arrays
-                    .asList("s=", "size=", "g=", "gap=", "h=", "height=", "f=", "floor=", "m=", "main=",
-                            "w=", "wall=", "b=", "border="
+                    .asList("s=", "size=", "g=", "gap=", "h=", "height=", "minh=", "minheight=", "maxh=", "maxheight=",
+                            "f=", "floor=", "m=", "main=", "w=", "wall=", "b=", "border="
                     );
 
             // Calculate the number of expected arguments
@@ -1101,6 +1107,14 @@ public class PlotSquared {
                                     ConfigurationUtil.INTEGER.parseString(value).shortValue()
                             );
                         }
+                        case "minh", "minheight" -> this.worldConfiguration.set(
+                                base + "world.min_gen_height",
+                                ConfigurationUtil.INTEGER.parseString(value).shortValue()
+                        );
+                        case "maxh", "maxheight" -> this.worldConfiguration.set(
+                                base + "world.max_gen_height",
+                                ConfigurationUtil.INTEGER.parseString(value).shortValue()
+                        );
                         case "f", "floor" -> this.worldConfiguration.set(
                                 base + "plot.floor",
                                 ConfigurationUtil.BLOCK_BUCKET.parseString(value).toString()
@@ -1479,7 +1493,7 @@ public class PlotSquared {
      *
      * @param world            World name
      * @param chunkCoordinates Chunk coordinates
-     * @return True if the chunk uses non-standard generation, false if not
+     * @return {@code true} if the chunk uses non-standard generation, {@code false} if not
      */
     public boolean isNonStandardGeneration(
             final @NonNull String world,
@@ -1524,10 +1538,12 @@ public class PlotSquared {
     /**
      * Get the caption map belonging to a namespace. If none exists, a dummy
      * caption map will be returned.
+     * <p>
+     * You can register a caption map by calling {@link #registerCaptionMap(String, CaptionMap)}
+     * </p>
      *
      * @param namespace Namespace
      * @return Map instance
-     * @see #registerCaptionMap(String, CaptionMap) To register a caption map
      */
     public @NonNull CaptionMap getCaptionMap(final @NonNull String namespace) {
         return this.captionMaps.computeIfAbsent(
@@ -1537,7 +1553,7 @@ public class PlotSquared {
     }
 
     /**
-     * Register a caption map. The namespace needs be equal to the namespace used for
+     * Register a caption map. The namespace needs to be equal to the namespace used for
      * the {@link TranslatableCaption}s inside the map.
      *
      * @param namespace  Namespace
@@ -1562,6 +1578,13 @@ public class PlotSquared {
     }
 
     /**
+     * Get if the {@link PlatformReadyEvent} has been sent by WorldEdit. There is no way to query this within WorldEdit itself.
+     */
+    public boolean isWeInitialised() {
+        return weInitialised;
+    }
+
+    /**
      * Different ways of sorting {@link Plot plots}
      */
     public enum SortType {
@@ -1581,6 +1604,17 @@ public class PlotSquared {
          * Sort plots based on their distance from the origin of the world
          */
         DISTANCE_FROM_ORIGIN
+    }
+
+    private final class WEPlatformReadyListener {
+
+        @SuppressWarnings("unused")
+        @Subscribe(priority = EventHandler.Priority.VERY_EARLY)
+        public void onPlatformReady(PlatformReadyEvent event) {
+            weInitialised = true;
+            WorldEdit.getInstance().getEventBus().unregister(WEPlatformReadyListener.this);
+        }
+
     }
 
 }
